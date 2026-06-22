@@ -1,0 +1,61 @@
+[build-system]
+requires = [ "poetry-core",]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "webuddhist-worker"
+version = "2025.01.01.0000"
+description = "WebBuddhist Worker Backend API"
+authors = [ "tenzinsamten <iamsamten>",]
+readme = "README.md"
+packages = [{include = "worker_api"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+alembic = "^1.14.0"
+bcrypt = "^4.2.1"
+fastapi = "^0.115.5"
+passlib = "^1.7.4"
+psycopg2-binary = "^2.9.10"
+pyjwt = "^2.10.0"
+pydantic = "^2.10.1"
+python-dotenv = "^1.0.1"
+python-jose = "^3.3.0"
+sqlalchemy = "^2.0.36"
+starlette = "^0.41.3"
+httpx = "^0.28.1"
+jinja2 = "^3.1.4"
+boto3 = "^1.35.97"
+python-multipart = "^0.0.20"
+pillow = "^11.1.0"
+requests = "^2.32.3"
+motor = "^3.6.1"
+beanie = "^1.29.0"
+redis = "^6.0.0"
+bs4 = "^0.0.2"
+elasticsearch = "^9.0.1"
+toml = "^0.10.2"
+mailtrap = "^2.3.0"
+google-genai = "^2.0"
+
+[tool.poetry.scripts]
+start = "uvicorn:main"
+
+[tool.coverage.run]
+omit = [ "*/*_repository.py", "*/*_models.py", "*/*_init__.py", "*/db/*", "*/external_clients/*",]
+
+[tool.coverage.report]
+fail_under = 80
+exclude_lines = [ "pragma: no cover", "def __repr__", "if self.debug:", "raise NotImplementedError", "if __name__ == .__main__.:", "pass", "raise ImportError",]
+
+[tool.poetry.dependencies.uvicorn]
+extras = [ "standard",]
+version = "^0.32.1"
+
+[tool.poetry.group.dev.dependencies]
+coverage = "^7.6.8"
+pytest = "^8.3.3"
+pytest-asyncio = "^0.25.2"
+pytest-mock = "^3.14.0"
+pytest-cov = "^6.0.0"
+openapi-python-client = "^0.28.3"
