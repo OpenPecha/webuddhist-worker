@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from worker_api.middleware.request_observability import RequestObservabilityMiddleware
 from worker_api.db.mongo_database import lifespan
 from worker_api.audio.audio_views import audio_router
+from worker_api.llm.llm_views import llm_router
 
 import uvicorn
 
@@ -17,6 +18,7 @@ api = FastAPI(
 )
 
 api.include_router(audio_router)
+api.include_router(llm_router)
 
 api.add_middleware(
     CORSMiddleware,
