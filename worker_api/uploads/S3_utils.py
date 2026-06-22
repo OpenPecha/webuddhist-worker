@@ -127,6 +127,37 @@ def generate_presigned_access_url(key: str, expiration: int = None) -> str:
         )
 
 
+def download_bytes(key: str) -> bytes:
+    """
+    Download file bytes from S3 bucket.
+    
+    Args:
+        key: S3 object key (path in bucket)
+    
+    Returns:
+        File content as bytes
+    
+    Raises:
+        HTTPException: If download fails
+    """
+    try:
+        bucket_name = get("AWS_BUCKET_NAME")
+        response = s3_client.get_object(Bucket=bucket_name, Key=key)
+        return response["Body"].read()
+    except ClientError as e:
+        logger.error(f"Failed to download file from S3: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to download file: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error downloading file from S3: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unexpected error: {str(e)}",
+        )
+
+
 def delete_file(key: str):
     """
     Delete a file from S3 bucket.
