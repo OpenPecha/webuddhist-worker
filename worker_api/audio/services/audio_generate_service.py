@@ -126,13 +126,67 @@ def _upload_and_persist_audio(
     )
 
 
+async def _generate_audio_from_text(
+    text: str,
+    language: str,
+    audio_type: PlanAudioType = PlanAudioType.TEXT_READING,
+    voice_name: MonlamVoiceName = MonlamVoiceName.DOLKAR_LHASA_FEMALE,
+    s3_key_prefix: Optional[str] = None,
+):
+    SAMPLE_RATE = 24000
+    BYTES_PER_SAMPLE = 2
+    WAV_HEADER_SIZE = 44
+
+    wav_bytes = generate_tts_audio(
+        text, audio_type, language, voice_name=voice_name
+    )
+    raw_pcm = wav_bytes[WAV_HEADER_SIZE:]
+
+    segment_samples = len(raw_pcm) // BYTES_PER_SAMPLE
+    duration_ms = int((segment_samples / SAMPLE_RATE) * 1000)
+
+    combined_wav, _ = _build_combined_wav([raw_pcm])
+
+    if s3_key_prefix:
+        s3_key = f"{s3_key_prefix}/{uuid4()}.wav"
+    else:
+        s3_key = f"audio/generated/{uuid4()}.wav"
+    
+    upload_bytes(
+        file_bytes=BytesIO(combined_wav),
+        key=s3_key,
+        content_type=WAV_CONTENT_TYPE,
+    )
+
+    audio_url = generate_presigned_access_url(
+        key=s3_key,
+    )
+
+    return {
+        "audio_url": audio_url,
+        "audio_duration_ms": duration_ms,
+        "s3_key": s3_key,
+    }
+
+
 async def generate_plan_audio_service(
     language: str,
+    text: Optional[str] = None,
     day_id: Optional[UUID] = None,
     sub_task_id: Optional[UUID] = None,
     audio_type: PlanAudioType = PlanAudioType.TEXT_READING,
     voice_name: MonlamVoiceName = MonlamVoiceName.DOLKAR_LHASA_FEMALE,
+    s3_key_prefix: Optional[str] = None,
 ):
+    if text:
+        return await _generate_audio_from_text(
+            text=text,
+            language=language,
+            audio_type=audio_type,
+            voice_name=voice_name,
+            s3_key_prefix=s3_key_prefix,
+        )
+
     if sub_task_id:
         return await _generate_subtask_audio(
             sub_task_id=sub_task_id,
