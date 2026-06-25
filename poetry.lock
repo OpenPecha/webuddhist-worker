@@ -235,6 +235,22 @@ urllib3 = ">=1.25.4,<2.2.0 || >2.2.0,<3"
 crt = ["awscrt (==0.32.2)"]
 
 [[package]]
+name = "botok"
+version = "0.8.12"
+description = "Tibetan Word Tokenizer"
+optional = false
+python-versions = ">=3.6"
+groups = ["main"]
+files = [
+    {file = "botok-0.8.12-py3-none-any.whl", hash = "sha256:ad7f7d8350f8c0a18430ab0a7465ac0f9e4aa566cb5acc2a0fb738dfa45c48f5"},
+    {file = "botok-0.8.12.tar.gz", hash = "sha256:98bf755522725ead547d3de66af692c472570bf6ab2d335b19255bcb85213949"},
+]
+
+[package.dependencies]
+pyyaml = "*"
+requests = "*"
+
+[[package]]
 name = "bs4"
 version = "0.0.2"
 description = "Dummy package for Beautiful Soup (beautifulsoup4)"
@@ -2846,4 +2862,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "e8fc428244abcebffa8cf9cb536b4a66a1c643a1c4cbdc32bef0ece6bcf6b521"
+content-hash = "c9eb1190e0873e299fee7cbec6afe3edbe46eca0284c1d48aeeff8db9e6e4717"
