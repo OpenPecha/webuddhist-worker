@@ -216,6 +216,85 @@ class TestGeneratePlanAudioService:
         
         assert exc_info.value.status_code == 400
 
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_generate_service._generate_audio_from_text")
+    async def test_generate_audio_with_text_routes_correctly(
+        self,
+        mock_generate_from_text,
+    ):
+        """Test that text input routes to _generate_audio_from_text."""
+        mock_generate_from_text.return_value = {
+            "audio_url": "https://s3.example.com/audio.wav",
+            "audio_duration_ms": 5000,
+            "s3_key": "audio/generated/test.wav"
+        }
+        
+        result = await generate_plan_audio_service(
+            text="Test text input",
+            language="en",
+            audio_type=PlanAudioType.TEXT_READING,
+            voice_name=MonlamVoiceName.DOLKAR_LHASA_FEMALE,
+        )
+        
+        assert result["audio_url"] == "https://s3.example.com/audio.wav"
+        assert result["audio_duration_ms"] == 5000
+        
+        mock_generate_from_text.assert_called_once_with(
+            text="Test text input",
+            language="en",
+            audio_type=PlanAudioType.TEXT_READING,
+            voice_name=MonlamVoiceName.DOLKAR_LHASA_FEMALE,
+            s3_key_prefix=None,
+        )
+
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_generate_service._generate_audio_from_text")
+    async def test_generate_audio_with_text_and_prefix(
+        self,
+        mock_generate_from_text,
+    ):
+        """Test text input with custom S3 prefix."""
+        mock_generate_from_text.return_value = {
+            "audio_url": "https://s3.example.com/custom/audio.wav",
+            "audio_duration_ms": 3000,
+            "s3_key": "custom/prefix/test.wav"
+        }
+        
+        result = await generate_plan_audio_service(
+            text="Custom prefix text",
+            language="bo",
+            s3_key_prefix="custom/prefix",
+        )
+        
+        assert result["s3_key"] == "custom/prefix/test.wav"
+        
+        mock_generate_from_text.assert_called_once()
+        call_kwargs = mock_generate_from_text.call_args.kwargs
+        assert call_kwargs["s3_key_prefix"] == "custom/prefix"
+
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_generate_service._generate_audio_from_text")
+    @patch("worker_api.audio.services.audio_generate_service.SessionLocal")
+    async def test_generate_audio_text_bypasses_database(
+        self,
+        mock_session_local,
+        mock_generate_from_text,
+    ):
+        """Test that text input bypasses database operations."""
+        mock_generate_from_text.return_value = {
+            "audio_url": "https://s3.example.com/audio.wav",
+            "audio_duration_ms": 4000,
+            "s3_key": "audio/generated/test.wav"
+        }
+        
+        await generate_plan_audio_service(
+            text="No database needed",
+            language="en",
+        )
+        
+        mock_session_local.assert_not_called()
+        mock_generate_from_text.assert_called_once()
+
 
 class TestGenerateAudioSegments:
     """Tests for _generate_audio_segments helper function."""
@@ -346,3 +425,198 @@ class TestUpdateSubtaskTimestamps:
         assert call_kwargs["sub_task_id"] == mock_subtask.id
         assert call_kwargs["start_ms"] == 0
         assert call_kwargs["end_ms"] > 0
+
+
+class TestGenerateAudioFromText:
+    """Tests for _generate_audio_from_text helper function."""
+
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_generate_service.generate_tts_audio")
+    @patch("worker_api.audio.services.audio_generate_service.upload_bytes")
+    @patch("worker_api.audio.services.audio_generate_service.generate_presigned_access_url")
+    async def test_generate_audio_from_text_success(
+        self,
+        mock_presigned_url,
+        mock_upload,
+        mock_tts,
+    ):
+        """Test successful audio generation from text."""
+        from worker_api.audio.services.audio_generate_service import _generate_audio_from_text
+        
+        wav_header = b"RIFF" + b"\x00" * 40
+        audio_data = b"\x00" * 1000
+        mock_tts.return_value = wav_header + audio_data
+        mock_presigned_url.return_value = "https://s3.example.com/audio.wav"
+        
+        result = await _generate_audio_from_text(
+            text="Test text for audio generation",
+            language="en",
+            audio_type=PlanAudioType.TEXT_READING,
+        )
+        
+        assert result["audio_url"] == "https://s3.example.com/audio.wav"
+        assert result["audio_duration_ms"] > 0
+        assert "s3_key" in result
+        assert result["s3_key"].startswith("audio/generated/")
+        assert result["s3_key"].endswith(".wav")
+        
+        mock_tts.assert_called_once_with(
+            "Test text for audio generation",
+            PlanAudioType.TEXT_READING,
+            "en",
+            voice_name=MonlamVoiceName.DOLKAR_LHASA_FEMALE,
+        )
+        mock_upload.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_generate_service.generate_tts_audio")
+    @patch("worker_api.audio.services.audio_generate_service.upload_bytes")
+    @patch("worker_api.audio.services.audio_generate_service.generate_presigned_access_url")
+    async def test_generate_audio_from_text_with_custom_prefix(
+        self,
+        mock_presigned_url,
+        mock_upload,
+        mock_tts,
+    ):
+        """Test audio generation with custom S3 key prefix."""
+        from worker_api.audio.services.audio_generate_service import _generate_audio_from_text
+        
+        wav_header = b"RIFF" + b"\x00" * 40
+        audio_data = b"\x00" * 500
+        mock_tts.return_value = wav_header + audio_data
+        mock_presigned_url.return_value = "https://s3.example.com/custom/audio.wav"
+        
+        result = await _generate_audio_from_text(
+            text="Custom prefix test",
+            language="en",
+            s3_key_prefix="custom/prefix",
+        )
+        
+        assert result["s3_key"].startswith("custom/prefix/")
+        assert result["s3_key"].endswith(".wav")
+        
+        upload_call = mock_upload.call_args
+        uploaded_key = upload_call.kwargs["key"]
+        assert uploaded_key.startswith("custom/prefix/")
+
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_generate_service.generate_tts_audio")
+    @patch("worker_api.audio.services.audio_generate_service.upload_bytes")
+    @patch("worker_api.audio.services.audio_generate_service.generate_presigned_access_url")
+    async def test_generate_audio_from_text_with_voice_name(
+        self,
+        mock_presigned_url,
+        mock_upload,
+        mock_tts,
+    ):
+        """Test audio generation with specific voice name."""
+        from worker_api.audio.services.audio_generate_service import _generate_audio_from_text
+        
+        wav_header = b"RIFF" + b"\x00" * 40
+        audio_data = b"\x00" * 800
+        mock_tts.return_value = wav_header + audio_data
+        mock_presigned_url.return_value = "https://s3.example.com/audio.wav"
+        
+        result = await _generate_audio_from_text(
+            text="Voice test",
+            language="bo",
+            voice_name=MonlamVoiceName.YANGCHEN_LHASA_FEMALE,
+        )
+        
+        assert "audio_url" in result
+        mock_tts.assert_called_once_with(
+            "Voice test",
+            PlanAudioType.TEXT_READING,
+            "bo",
+            voice_name=MonlamVoiceName.YANGCHEN_LHASA_FEMALE,
+        )
+
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_generate_service.generate_tts_audio")
+    @patch("worker_api.audio.services.audio_generate_service.upload_bytes")
+    @patch("worker_api.audio.services.audio_generate_service.generate_presigned_access_url")
+    async def test_generate_audio_from_text_recitation_type(
+        self,
+        mock_presigned_url,
+        mock_upload,
+        mock_tts,
+    ):
+        """Test audio generation with RECITATION type."""
+        from worker_api.audio.services.audio_generate_service import _generate_audio_from_text
+        
+        wav_header = b"RIFF" + b"\x00" * 40
+        audio_data = b"\x00" * 1200
+        mock_tts.return_value = wav_header + audio_data
+        mock_presigned_url.return_value = "https://s3.example.com/audio.wav"
+        
+        result = await _generate_audio_from_text(
+            text="Recitation text",
+            language="bo",
+            audio_type=PlanAudioType.RECITATION,
+        )
+        
+        assert result["audio_duration_ms"] > 0
+        mock_tts.assert_called_once_with(
+            "Recitation text",
+            PlanAudioType.RECITATION,
+            "bo",
+            voice_name=MonlamVoiceName.DOLKAR_LHASA_FEMALE,
+        )
+
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_generate_service.generate_tts_audio")
+    @patch("worker_api.audio.services.audio_generate_service.upload_bytes")
+    @patch("worker_api.audio.services.audio_generate_service.generate_presigned_access_url")
+    async def test_generate_audio_from_text_instruction_type(
+        self,
+        mock_presigned_url,
+        mock_upload,
+        mock_tts,
+    ):
+        """Test audio generation with INSTRUCTION type."""
+        from worker_api.audio.services.audio_generate_service import _generate_audio_from_text
+        
+        wav_header = b"RIFF" + b"\x00" * 40
+        audio_data = b"\x00" * 600
+        mock_tts.return_value = wav_header + audio_data
+        mock_presigned_url.return_value = "https://s3.example.com/audio.wav"
+        
+        result = await _generate_audio_from_text(
+            text="Instruction text",
+            language="en",
+            audio_type=PlanAudioType.INSTRUCTION,
+        )
+        
+        assert "s3_key" in result
+        mock_tts.assert_called_once_with(
+            "Instruction text",
+            PlanAudioType.INSTRUCTION,
+            "en",
+            voice_name=MonlamVoiceName.DOLKAR_LHASA_FEMALE,
+        )
+
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_generate_service.generate_tts_audio")
+    @patch("worker_api.audio.services.audio_generate_service.upload_bytes")
+    @patch("worker_api.audio.services.audio_generate_service.generate_presigned_access_url")
+    async def test_generate_audio_from_text_duration_calculation(
+        self,
+        mock_presigned_url,
+        mock_upload,
+        mock_tts,
+    ):
+        """Test correct duration calculation from audio data."""
+        from worker_api.audio.services.audio_generate_service import _generate_audio_from_text
+        
+        wav_header = b"RIFF" + b"\x00" * 40
+        audio_data = b"\x00" * 48000
+        mock_tts.return_value = wav_header + audio_data
+        mock_presigned_url.return_value = "https://s3.example.com/audio.wav"
+        
+        result = await _generate_audio_from_text(
+            text="Duration test",
+            language="en",
+        )
+        
+        expected_duration_ms = int((48000 / 2 / 24000) * 1000)
+        assert result["audio_duration_ms"] == expected_duration_ms
