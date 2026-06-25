@@ -33,26 +33,26 @@ def _generate_audio_segments(
     audio_segments: List[bytes] = []
     subtask_refs = []
     allowed_types = {ContentType.TEXT, ContentType.SOURCE_REFERENCE}
+
     for task in tasks:
-        subtask = task.sub_tasks[0] if task.sub_tasks else None
-        if not subtask:
-            continue
-        if subtask.content_type not in allowed_types:
-            continue
+        for subtask in task.sub_tasks:
+            if subtask.content_type not in allowed_types:
+                continue
 
-        if subtask.audio_url:
-            existing_wav = download_bytes(
-                key=subtask.audio_url,
-            )
-            raw_pcm = existing_wav[wav_header_size:]
-        else:
-            wav_bytes = generate_tts_audio(
-                subtask.content, audio_type, language, voice_name=voice_name
-            )
-            raw_pcm = wav_bytes[wav_header_size:]
+            if subtask.audio_url:
+                existing_wav = download_bytes(
+                    key=subtask.audio_url,
+                )
+                raw_pcm = existing_wav[wav_header_size:]
+            else:
+                wav_bytes = generate_tts_audio(
+                    subtask.content, audio_type, language, voice_name=voice_name
+                )
+                raw_pcm = wav_bytes[wav_header_size:]
 
-        audio_segments.append(raw_pcm)
-        subtask_refs.append(subtask)
+            audio_segments.append(raw_pcm)
+            subtask_refs.append(subtask)
+
     return audio_segments, subtask_refs
 
 
