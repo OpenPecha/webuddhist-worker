@@ -33,26 +33,26 @@ def _generate_audio_segments(
     audio_segments: List[bytes] = []
     subtask_refs = []
     allowed_types = {ContentType.TEXT, ContentType.SOURCE_REFERENCE}
+
     for task in tasks:
-        subtask = task.sub_tasks[0] if task.sub_tasks else None
-        if not subtask:
-            continue
-        if subtask.content_type not in allowed_types:
-            continue
+        for subtask in task.sub_tasks:
+            if subtask.content_type not in allowed_types:
+                continue
 
-        if subtask.audio_url:
-            existing_wav = download_bytes(
-                key=subtask.audio_url,
-            )
-            raw_pcm = existing_wav[wav_header_size:]
-        else:
-            wav_bytes = generate_tts_audio(
-                subtask.content, audio_type, language, voice_name=voice_name
-            )
-            raw_pcm = wav_bytes[wav_header_size:]
+            if subtask.audio_url:
+                existing_wav = download_bytes(
+                    key=subtask.audio_url,
+                )
+                raw_pcm = existing_wav[wav_header_size:]
+            else:
+                wav_bytes = generate_tts_audio(
+                    subtask.content, audio_type, language, voice_name=voice_name
+                )
+                raw_pcm = wav_bytes[wav_header_size:]
 
-        audio_segments.append(raw_pcm)
-        subtask_refs.append(subtask)
+            audio_segments.append(raw_pcm)
+            subtask_refs.append(subtask)
+
     return audio_segments, subtask_refs
 
 
@@ -126,13 +126,67 @@ def _upload_and_persist_audio(
     )
 
 
+async def _generate_audio_from_text(
+    text: str,
+    language: str,
+    audio_type: PlanAudioType = PlanAudioType.TEXT_READING,
+    voice_name: MonlamVoiceName = MonlamVoiceName.DOLKAR_LHASA_FEMALE,
+    s3_key_prefix: Optional[str] = None,
+):
+    SAMPLE_RATE = 24000
+    BYTES_PER_SAMPLE = 2
+    WAV_HEADER_SIZE = 44
+
+    wav_bytes = generate_tts_audio(
+        text, audio_type, language, voice_name=voice_name
+    )
+    raw_pcm = wav_bytes[WAV_HEADER_SIZE:]
+
+    segment_samples = len(raw_pcm) // BYTES_PER_SAMPLE
+    duration_ms = int((segment_samples / SAMPLE_RATE) * 1000)
+
+    combined_wav, _ = _build_combined_wav([raw_pcm])
+
+    if s3_key_prefix:
+        s3_key = f"{s3_key_prefix}/{uuid4()}.wav"
+    else:
+        s3_key = f"audio/generated/{uuid4()}.wav"
+    
+    upload_bytes(
+        file_bytes=BytesIO(combined_wav),
+        key=s3_key,
+        content_type=WAV_CONTENT_TYPE,
+    )
+
+    audio_url = generate_presigned_access_url(
+        key=s3_key,
+    )
+
+    return {
+        "audio_url": audio_url,
+        "audio_duration_ms": duration_ms,
+        "s3_key": s3_key,
+    }
+
+
 async def generate_plan_audio_service(
     language: str,
+    text: Optional[str] = None,
     day_id: Optional[UUID] = None,
     sub_task_id: Optional[UUID] = None,
     audio_type: PlanAudioType = PlanAudioType.TEXT_READING,
     voice_name: MonlamVoiceName = MonlamVoiceName.DOLKAR_LHASA_FEMALE,
+    s3_key_prefix: Optional[str] = None,
 ):
+    if text:
+        return await _generate_audio_from_text(
+            text=text,
+            language=language,
+            audio_type=audio_type,
+            voice_name=voice_name,
+            s3_key_prefix=s3_key_prefix,
+        )
+
     if sub_task_id:
         return await _generate_subtask_audio(
             sub_task_id=sub_task_id,

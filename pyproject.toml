@@ -39,6 +39,7 @@ elasticsearch = "^9.0.1"
 toml = "^0.10.2"
 mailtrap = "^2.3.0"
 google-genai = "^2.0"
+botok = "^0.8"
 
 firebase-admin = "^7.4.0"
 [tool.poetry.scripts]

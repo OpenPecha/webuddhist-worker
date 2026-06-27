@@ -28,5 +28,5 @@ COPY . /app
 # Expose the port that the app runs on
 EXPOSE 8001
 
-# Command to run the application
-CMD ["sh", "-c", "poetry run alembic upgrade head && poetry run uvicorn worker_api.app:api --host 0.0.0.0 --port 8001 --log-level debug"]
+# Command to run the application (skip alembic since migrations are managed by app-pecha-backend)
+CMD ["uvicorn", "worker_api.app:api", "--host", "0.0.0.0", "--port", "8001"]
