@@ -90,7 +90,7 @@ DEFAULTS = dict(
     # Request observability (per-endpoint memory and latency logging)
     REQUEST_OBSERVABILITY_ENABLED="true",
     REQUEST_OBSERVABILITY_MEMORY_WARN_MB=50,
-    REQUEST_OBSERVABILITY_SKIP_PATHS="/health",
+    REQUEST_OBSERVABILITY_SKIP_PATHS="/health,/internal/dispatch-due-notifications,/internal/dispatch-routine-notifications",
 
     # TTS Configuration
     GEMINI_API_KEY="",
@@ -100,6 +100,22 @@ DEFAULTS = dict(
     MONLAM_TTS_MODEL_NAME="",
     MONLAM_TTS_VOICE_NAME="",
 
+    # Notification dispatch (Cloud Scheduler -> worker)
+    NOTIFICATION_DISPATCH_SECRET_TOKEN="Dispatch",
+    NOTIFICATION_DISPATCH_BATCH_SIZE=100,
+    NOTIFICATION_DISPATCH_ENABLED="true",
+
+    GOOGLE_APPLICATION_CREDENTIALS="/etc/secrets/firebase-service-account.json",
+
+    # Notification content defaults
+    NOTIFICATION_DEFAULT_TITLE="WebBuddhist",
+    NOTIFICATION_DEFAULT_BODY="Time for your daily practice.",
+
+    # Optional Redis idempotency during dispatch
+    NOTIFICATION_IDEMPOTENCY_ENABLED="false",
+    NOTIFICATION_IDEMPOTENCY_TTL_SECONDS=3600,
+    NOTIFICATION_IDEMPOTENCY_KEY_PREFIX="worker:notifications:sent:",
+    PLAN_BACKEND="https://api.webuddhist.com",
 )
 
 TIME_FORMAT_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -124,3 +140,7 @@ def get_int(key: str) -> int:
         return int(get(key))
     except (TypeError, ValueError) as e:
         raise ValueError(f"Could not convert the value for key '{key}' to int: {e}")
+
+
+def get_bool(key: str) -> bool:
+    return get(key).lower() in {"1", "true", "yes", "on"}

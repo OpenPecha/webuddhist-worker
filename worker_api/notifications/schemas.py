@@ -1,0 +1,113 @@
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, Field, field_validator
+
+from worker_api.config import TIME_FORMAT_PATTERN
+from worker_api.notifications.enums import PushPlatform
+
+
+class RoutineConfig(BaseModel):
+    times: list[str] = Field(..., min_length=1)
+    days_of_week: list[int] | None = Field(
+        default=None,
+        description="ISO weekday numbers (0=Monday). Omit for every day.",
+    )
+    plan_name: str | None = None
+    message_template: str | None = None
+    current_day_number: int | None = None
+
+    @field_validator("times")
+    @classmethod
+    def validate_times(cls, value: list[str]) -> list[str]:
+        for time_value in value:
+            if not TIME_FORMAT_PATTERN.match(time_value):
+                raise ValueError(f"Invalid time format: {time_value}. Expected HH:MM")
+        return value
+
+    @field_validator("days_of_week")
+    @classmethod
+    def validate_days_of_week(cls, value: list[int] | None) -> list[int] | None:
+        if value is None:
+            return value
+        for day in value:
+            if day < 0 or day > 6:
+                raise ValueError("days_of_week values must be between 0 and 6")
+        return value
+
+
+class EnrollReminderRequest(BaseModel):
+    user_id: UUID
+    plan_id: UUID
+    timezone: str
+    device_token: str
+    platform: PushPlatform
+    routine: RoutineConfig
+
+
+class UpdateReminderRequest(BaseModel):
+    timezone: str | None = None
+    device_token: str | None = None
+    platform: PushPlatform | None = None
+    routine: RoutineConfig | None = None
+
+
+class ReminderResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    plan_id: UUID
+    trigger_at: datetime
+    timezone: str
+    status: str
+    platform: str
+    routine_config: dict[str, Any]
+
+    model_config = {"from_attributes": True}
+
+
+class DispatchDueNotificationsResponse(BaseModel):
+    processed: int
+    sent: int
+    failed: int
+    skipped: int
+
+
+class PushDeviceTarget(BaseModel):
+    token: str
+    platform: str
+
+
+class NotificationContent(BaseModel):
+    title: str
+    body: str
+    custom_image_url: str | None = None
+
+
+class RoutineNotificationUserTarget(BaseModel):
+    user_id: UUID
+    notification: NotificationContent
+    push_devices: list[PushDeviceTarget]
+
+
+class RoutineNotificationGroup(BaseModel):
+    session_type: str
+    source_id: UUID | None
+    source_image_url: str | None = None
+    users: list[RoutineNotificationUserTarget]
+
+
+class RoutineNotificationTargetsResponse(BaseModel):
+    generated_at: datetime
+    matched_time_utc: str
+    groups: list[RoutineNotificationGroup]
+
+
+class DispatchRoutineNotificationsResponse(BaseModel):
+    generated_at: datetime
+    matched_time_utc: str
+    groups: list[RoutineNotificationGroup]
+    processed: int
+    sent: int
+    failed: int
+    skipped: int
