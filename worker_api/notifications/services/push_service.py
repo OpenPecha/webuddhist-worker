@@ -9,7 +9,10 @@ from worker_api.notifications.enums import PushPlatform
 from worker_api.notifications.models.reminder_models import UpcomingReminder
 from worker_api.notifications.services.notification_content_service import build_notification_content
 from worker_api.notifications.services.push.config_loader import is_push_configured
-from worker_api.notifications.services.push.fcm_client import send_fcm_notification
+from worker_api.notifications.services.push.fcm_client import (
+    build_routine_notification_data,
+    send_fcm_notification,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +59,15 @@ async def send_push_notification(reminder: UpcomingReminder, title: str, body: s
         return
 
     if reminder.platform in (PushPlatform.ANDROID, PushPlatform.IOS):
-        await send_fcm_notification(device_token=reminder.device_token, title=title, body=body)
+        await send_fcm_notification(
+            device_token=reminder.device_token,
+            title=title,
+            body=body,
+            data=build_routine_notification_data(
+                session_type="PLAN",
+                source_id=reminder.plan_id,
+            ),
+        )
         return
 
     raise ValueError(f"Unsupported platform: {reminder.platform}")

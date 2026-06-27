@@ -22,6 +22,7 @@ SESSION_TYPE_PLAN = "PLAN"
 SESSION_TYPE_SERIES = "SERIES"
 SESSION_TYPE_RECITATION = "RECITATION"
 SESSION_TYPE_RECITATION_COLLECTION = "RECITATION_COLLECTION"
+SESSION_TYPE_ACCUMULATION = "ACCUMULATION"
 SESSION_TYPE_TIMER = "TIMER"
 IMAGE_TYPE_CUSTOM = "CUSTOM"
 
@@ -217,6 +218,13 @@ def _resolve_notification_content(
             )
 
     if session_type == SESSION_TYPE_RECITATION and source_id is not None:
+        return NotificationContent(
+            title=default_title,
+            body=default_body,
+            custom_image_url=None,
+        )
+
+    if session_type == SESSION_TYPE_ACCUMULATION and source_id is not None:
         return NotificationContent(
             title=default_title,
             body=default_body,
