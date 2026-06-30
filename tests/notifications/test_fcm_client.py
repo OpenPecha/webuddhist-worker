@@ -6,6 +6,7 @@ import pytest
 from worker_api.notifications.services.push.fcm_client import (
     build_routine_notification_data,
     send_fcm_notification,
+    send_routine_push_notification,
 )
 
 
@@ -83,3 +84,32 @@ class TestSendFcmNotification:
             "body": "Body",
             "image_url": "https://example.com/image.png",
         }
+
+
+class TestSendRoutinePushNotification:
+    @pytest.mark.asyncio
+    @patch("worker_api.notifications.services.push.fcm_client.send_fcm_notification")
+    async def test_delegates_to_send_fcm_notification(self, mock_send):
+        source_id = uuid4()
+        await send_routine_push_notification(
+            device_token="device-token",
+            session_type="PLAN",
+            source_id=source_id,
+            title="Title",
+            body="Body",
+            image_url="https://example.com/image.png",
+        )
+
+        mock_send.assert_awaited_once_with(
+            device_token="device-token",
+            title="Title",
+            body="Body",
+            image_url="https://example.com/image.png",
+            data={
+                "session_type": "PLAN",
+                "source_id": str(source_id),
+                "title": "Title",
+                "body": "Body",
+                "image_url": "https://example.com/image.png",
+            },
+        )

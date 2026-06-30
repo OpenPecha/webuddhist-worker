@@ -27,6 +27,30 @@ def build_routine_notification_data(
     }
 
 
+async def send_routine_push_notification(
+    *,
+    device_token: str,
+    session_type: str,
+    source_id: UUID | None,
+    title: str,
+    body: str,
+    image_url: str | None = None,
+) -> None:
+    await send_fcm_notification(
+        device_token=device_token,
+        title=title,
+        body=body,
+        image_url=image_url,
+        data=build_routine_notification_data(
+            session_type=session_type,
+            source_id=source_id,
+            title=title,
+            body=body,
+            image_url=image_url,
+        ),
+    )
+
+
 async def send_fcm_notification(
     *,
     device_token: str,
