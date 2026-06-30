@@ -89,11 +89,11 @@ class TestRoutineNotificationTargetsEndpoint:
                     users=[
                         RoutineNotificationUserTarget(
                             user_id=user_id,
-                            notification=NotificationContent(
-                                title="Day 1",
-                                body="Begin practice.",
-                                custom_image_url=None,
-                            ),
+                                notification=NotificationContent(
+                                    title="Day 1",
+                                    body="Begin practice.",
+                                    image_url="https://example.com/plan.png",
+                                ),
                             push_devices=[
                                 PushDeviceTarget(token="fcm-token", platform="android"),
                             ],
@@ -159,11 +159,11 @@ class TestDispatchRoutineNotificationsEndpoint:
                     users=[
                         RoutineNotificationUserTarget(
                             user_id=user_id,
-                            notification=NotificationContent(
-                                title="Day 1",
-                                body="Begin practice.",
-                                custom_image_url=None,
-                            ),
+                                notification=NotificationContent(
+                                    title="Day 1",
+                                    body="Begin practice.",
+                                    image_url="https://example.com/plan.png",
+                                ),
                             push_devices=[
                                 PushDeviceTarget(token="fcm-token", platform="android"),
                             ],

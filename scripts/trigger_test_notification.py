@@ -180,9 +180,13 @@ async def _send_targets(send: bool) -> None:
                     device_token=device.token,
                     title=notification.title,
                     body=notification.body,
+                    image_url=notification.image_url,
                     data=build_routine_notification_data(
                         session_type=group.session_type,
                         source_id=group.source_id,
+                        title=notification.title,
+                        body=notification.body,
+                        image_url=notification.image_url,
                     ),
                 )
                 print(f"    sent to {device.platform} token={device.token[:12]}...")

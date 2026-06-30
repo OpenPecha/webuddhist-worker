@@ -48,14 +48,19 @@ async def dispatch_routine_notifications_service() -> DispatchRoutineNotificatio
                     continue
 
                 try:
+                    notification_data = build_routine_notification_data(
+                        session_type=group.session_type,
+                        source_id=group.source_id,
+                        title=notification.title,
+                        body=notification.body,
+                        image_url=notification.image_url,
+                    )
                     await send_fcm_notification(
                         device_token=device.token,
                         title=notification.title,
                         body=notification.body,
-                        data=build_routine_notification_data(
-                            session_type=group.session_type,
-                            source_id=group.source_id,
-                        ),
+                        data=notification_data,
+                        image_url=notification.image_url,
                     )
                     sent += 1
                 except Exception:
