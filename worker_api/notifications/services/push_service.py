@@ -66,6 +66,8 @@ async def send_push_notification(reminder: UpcomingReminder, title: str, body: s
             data=build_routine_notification_data(
                 session_type="PLAN",
                 source_id=reminder.plan_id,
+                title=title,
+                body=body,
             ),
         )
         return

@@ -29,6 +29,8 @@ async def send_test_notification_service(
     data = build_routine_notification_data(
         session_type=request.session_type.value,
         source_id=request.source_id,
+        title=title,
+        body=body,
     )
 
     if request.device_token:

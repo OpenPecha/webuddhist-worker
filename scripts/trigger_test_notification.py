@@ -26,10 +26,7 @@ sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
 from worker_api.db.database import SessionLocal
-from worker_api.notifications.services.push.fcm_client import (
-    build_routine_notification_data,
-    send_fcm_notification,
-)
+from worker_api.notifications.services.push.fcm_client import send_routine_push_notification
 from worker_api.notifications.services.routine_notification_service import (
     get_routine_notification_targets,
 )
@@ -176,14 +173,13 @@ async def _send_targets(send: bool) -> None:
                 continue
 
             for device in user.push_devices:
-                await send_fcm_notification(
+                await send_routine_push_notification(
                     device_token=device.token,
+                    session_type=group.session_type,
+                    source_id=group.source_id,
                     title=notification.title,
                     body=notification.body,
-                    data=build_routine_notification_data(
-                        session_type=group.session_type,
-                        source_id=group.source_id,
-                    ),
+                    image_url=notification.image_url,
                 )
                 print(f"    sent to {device.platform} token={device.token[:12]}...")
 

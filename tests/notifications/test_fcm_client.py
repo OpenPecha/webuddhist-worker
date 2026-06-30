@@ -6,29 +6,41 @@ import pytest
 from worker_api.notifications.services.push.fcm_client import (
     build_routine_notification_data,
     send_fcm_notification,
+    send_routine_push_notification,
 )
 
 
 class TestBuildRoutineNotificationData:
-    def test_includes_session_type_and_source_id(self):
+    def test_includes_session_metadata_and_content(self):
         source_id = uuid4()
         data = build_routine_notification_data(
             session_type="PLAN",
             source_id=source_id,
+            title="Day 1",
+            body="Begin practice.",
+            image_url="https://example.com/plan.png",
         )
         assert data == {
             "session_type": "PLAN",
             "source_id": str(source_id),
+            "title": "Day 1",
+            "body": "Begin practice.",
+            "image_url": "https://example.com/plan.png",
         }
 
-    def test_empty_source_id_when_missing(self):
+    def test_empty_optional_fields_when_missing(self):
         data = build_routine_notification_data(
-            session_type="TIMER",
+            session_type="SERIES",
             source_id=None,
+            title="Series title",
+            body="Default body",
         )
         assert data == {
-            "session_type": "TIMER",
+            "session_type": "SERIES",
             "source_id": "",
+            "title": "Series title",
+            "body": "Default body",
+            "image_url": "",
         }
 
 
@@ -36,7 +48,7 @@ class TestSendFcmNotification:
     @pytest.mark.asyncio
     @patch("worker_api.notifications.services.push.fcm_client.messaging.send")
     @patch("worker_api.notifications.services.push.fcm_client.initialize_firebase")
-    async def test_passes_notification_and_data_payload(
+    async def test_passes_notification_image_and_data_payload(
         self,
         mock_initialize_firebase,
         mock_send,
@@ -48,9 +60,13 @@ class TestSendFcmNotification:
             device_token="device-token",
             title="Title",
             body="Body",
+            image_url="https://example.com/image.png",
             data=build_routine_notification_data(
                 session_type="SERIES",
                 source_id=source_id,
+                title="Title",
+                body="Body",
+                image_url="https://example.com/image.png",
             ),
         )
 
@@ -59,8 +75,41 @@ class TestSendFcmNotification:
         message = mock_send.call_args.args[0]
         assert message.notification.title == "Title"
         assert message.notification.body == "Body"
+        assert message.notification.image == "https://example.com/image.png"
         assert message.token == "device-token"
         assert message.data == {
             "session_type": "SERIES",
             "source_id": str(source_id),
+            "title": "Title",
+            "body": "Body",
+            "image_url": "https://example.com/image.png",
         }
+
+
+class TestSendRoutinePushNotification:
+    @pytest.mark.asyncio
+    @patch("worker_api.notifications.services.push.fcm_client.send_fcm_notification")
+    async def test_delegates_to_send_fcm_notification(self, mock_send):
+        source_id = uuid4()
+        await send_routine_push_notification(
+            device_token="device-token",
+            session_type="PLAN",
+            source_id=source_id,
+            title="Title",
+            body="Body",
+            image_url="https://example.com/image.png",
+        )
+
+        mock_send.assert_awaited_once_with(
+            device_token="device-token",
+            title="Title",
+            body="Body",
+            image_url="https://example.com/image.png",
+            data={
+                "session_type": "PLAN",
+                "source_id": str(source_id),
+                "title": "Title",
+                "body": "Body",
+                "image_url": "https://example.com/image.png",
+            },
+        )

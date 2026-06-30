@@ -4,8 +4,7 @@ from worker_api.config import get_bool
 from worker_api.notifications.schemas import DispatchRoutineNotificationsResponse
 from worker_api.notifications.services.push.config_loader import is_push_configured
 from worker_api.notifications.services.push.fcm_client import (
-    build_routine_notification_data,
-    send_fcm_notification,
+    send_routine_push_notification,
 )
 from worker_api.notifications.services.routine_notification_service import (
     get_routine_notification_targets,
@@ -48,14 +47,13 @@ async def dispatch_routine_notifications_service() -> DispatchRoutineNotificatio
                     continue
 
                 try:
-                    await send_fcm_notification(
+                    await send_routine_push_notification(
                         device_token=device.token,
+                        session_type=group.session_type,
+                        source_id=group.source_id,
                         title=notification.title,
                         body=notification.body,
-                        data=build_routine_notification_data(
-                            session_type=group.session_type,
-                            source_id=group.source_id,
-                        ),
+                        image_url=notification.image_url,
                     )
                     sent += 1
                 except Exception:
