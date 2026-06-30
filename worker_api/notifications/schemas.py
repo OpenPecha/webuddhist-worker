@@ -2,10 +2,10 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from worker_api.config import TIME_FORMAT_PATTERN
-from worker_api.notifications.enums import PushPlatform
+from worker_api.notifications.enums import PushPlatform, SessionType
 
 
 class RoutineConfig(BaseModel):
@@ -111,3 +111,57 @@ class DispatchRoutineNotificationsResponse(BaseModel):
     sent: int
     failed: int
     skipped: int
+
+
+class SendTestNotificationRequest(BaseModel):
+    """Send a push notification directly for testing."""
+
+    title: str | None = Field(
+        default=None,
+        description="Notification title shown to the user. Defaults to NOTIFICATION_DEFAULT_TITLE.",
+    )
+    body: str | None = Field(
+        default=None,
+        description="Notification body shown to the user. Defaults to NOTIFICATION_DEFAULT_BODY.",
+    )
+    session_type: SessionType = Field(
+        ...,
+        description="Routine session type included in the FCM data payload.",
+    )
+    source_id: UUID | None = Field(
+        default=None,
+        description="UUID of the related entity. Omit or null for session types without a linked entity.",
+    )
+    device_token: str | None = Field(
+        default=None,
+        description="FCM device token to send the notification to.",
+    )
+    email: str | None = Field(
+        default=None,
+        description="User email; sends to all active push devices registered for that user.",
+    )
+
+    @model_validator(mode="after")
+    def validate_recipient(self) -> "SendTestNotificationRequest":
+        has_token = bool(self.device_token and self.device_token.strip())
+        has_email = bool(self.email and self.email.strip())
+        if has_token == has_email:
+            raise ValueError("Provide exactly one of device_token or email")
+        return self
+
+
+class SendTestNotificationDelivery(BaseModel):
+    device_token_prefix: str
+    platform: str | None = None
+    status: str
+    error: str | None = None
+
+
+class SendTestNotificationResponse(BaseModel):
+    title: str
+    body: str
+    session_type: str
+    source_id: str
+    sent: int
+    failed: int
+    deliveries: list[SendTestNotificationDelivery]

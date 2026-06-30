@@ -152,7 +152,7 @@ def _ensure_test_push_device(token: str, user_id: UUID | None = None) -> UUID | 
 
 
 async def _send_targets(send: bool) -> None:
-    targets = get_routine_notification_targets()
+    targets = await get_routine_notification_targets()
     print(f"generated_at={targets.generated_at.isoformat()}")
     print(f"matched_time_utc={targets.matched_time_utc}")
     print(f"groups={len(targets.groups)}")

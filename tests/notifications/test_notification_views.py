@@ -61,6 +61,7 @@ class TestRoutineNotificationTargetsEndpoint:
 
     @patch(
         "worker_api.notifications.internal_views.get_routine_notification_targets",
+        new_callable=AsyncMock,
     )
     def test_routine_notification_targets_success(self, mock_get_targets, client, monkeypatch):
         monkeypatch.setenv("NOTIFICATION_DISPATCH_SECRET_TOKEN", "secret-token")
@@ -187,6 +188,144 @@ class TestDispatchRoutineNotificationsEndpoint:
         assert payload["processed"] == 1
         assert payload["groups"][0]["session_type"] == "PLAN"
         mock_dispatch.assert_called_once()
+
+
+class TestSendTestNotificationEndpoint:
+    def test_send_test_notification_requires_token(self, client):
+        response = client.post(
+            "/api/v1/internal/send-test-notification",
+            json={
+                "session_type": "PLAN",
+                "device_token": "fcm-token",
+            },
+        )
+        assert response.status_code == 422
+
+    def test_send_test_notification_rejects_invalid_token(self, client, monkeypatch):
+        monkeypatch.setenv("NOTIFICATION_DISPATCH_SECRET_TOKEN", "secret-token")
+        response = client.post(
+            "/api/v1/internal/send-test-notification",
+            headers={"X-Dispatch-Token": "wrong-token"},
+            json={
+                "session_type": "PLAN",
+                "device_token": "fcm-token",
+            },
+        )
+        assert response.status_code == 401
+
+    def test_send_test_notification_requires_recipient(self, client, monkeypatch):
+        monkeypatch.setenv("NOTIFICATION_DISPATCH_SECRET_TOKEN", "secret-token")
+        response = client.post(
+            "/api/v1/internal/send-test-notification",
+            headers={"X-Dispatch-Token": "secret-token"},
+            json={"session_type": "PLAN"},
+        )
+        assert response.status_code == 422
+
+    def test_send_test_notification_rejects_both_recipients(self, client, monkeypatch):
+        monkeypatch.setenv("NOTIFICATION_DISPATCH_SECRET_TOKEN", "secret-token")
+        response = client.post(
+            "/api/v1/internal/send-test-notification",
+            headers={"X-Dispatch-Token": "secret-token"},
+            json={
+                "session_type": "PLAN",
+                "device_token": "fcm-token",
+                "email": "user@example.com",
+            },
+        )
+        assert response.status_code == 422
+
+    @patch(
+        "worker_api.notifications.internal_views.send_test_notification_service",
+        new_callable=AsyncMock,
+    )
+    def test_send_test_notification_success(self, mock_send, client, monkeypatch):
+        monkeypatch.setenv("NOTIFICATION_DISPATCH_SECRET_TOKEN", "secret-token")
+        from uuid import uuid4
+
+        from worker_api.notifications.schemas import (
+            SendTestNotificationDelivery,
+            SendTestNotificationResponse,
+        )
+
+        plan_id = uuid4()
+        mock_send.return_value = SendTestNotificationResponse(
+            title="Day 1",
+            body="Begin practice.",
+            session_type="PLAN",
+            source_id=str(plan_id),
+            sent=1,
+            failed=0,
+            deliveries=[
+                SendTestNotificationDelivery(
+                    device_token_prefix="fcm-token",
+                    platform=None,
+                    status="sent",
+                )
+            ],
+        )
+
+        response = client.post(
+            "/api/v1/internal/send-test-notification",
+            headers={"X-Dispatch-Token": "secret-token"},
+            json={
+                "title": "Day 1",
+                "body": "Begin practice.",
+                "session_type": "PLAN",
+                "source_id": str(plan_id),
+                "device_token": "fcm-token",
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["sent"] == 1
+        assert payload["session_type"] == "PLAN"
+        assert payload["source_id"] == str(plan_id)
+        mock_send.assert_called_once()
+
+    @patch(
+        "worker_api.notifications.internal_views.send_test_notification_service",
+        new_callable=AsyncMock,
+    )
+    def test_send_test_notification_not_found(self, mock_send, client, monkeypatch):
+        monkeypatch.setenv("NOTIFICATION_DISPATCH_SECRET_TOKEN", "secret-token")
+        mock_send.side_effect = ValueError("No active push devices found for email: user@example.com")
+
+        response = client.post(
+            "/api/v1/internal/send-test-notification",
+            headers={"X-Dispatch-Token": "secret-token"},
+            json={
+                "session_type": "TIMER",
+                "email": "user@example.com",
+            },
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"]["error"] == "NOT_FOUND"
+
+    @patch(
+        "worker_api.notifications.internal_views.send_test_notification_service",
+        new_callable=AsyncMock,
+    )
+    def test_send_test_notification_not_configured(self, mock_send, client, monkeypatch):
+        monkeypatch.setenv("NOTIFICATION_DISPATCH_SECRET_TOKEN", "secret-token")
+        mock_send.side_effect = ValueError(
+            "Firebase is not configured. Set GOOGLE_APPLICATION_CREDENTIALS to your "
+            "Firebase service account JSON file path (or inline JSON)."
+        )
+
+        response = client.post(
+            "/api/v1/internal/send-test-notification",
+            headers={"X-Dispatch-Token": "secret-token"},
+            json={
+                "session_type": "PLAN",
+                "device_token": "fcm-token",
+            },
+        )
+
+        assert response.status_code == 503
+        assert response.json()["detail"]["error"] == "NOT_CONFIGURED"
 
 
 class TestReminderEndpoints:

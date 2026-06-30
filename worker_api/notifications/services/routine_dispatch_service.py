@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 async def dispatch_routine_notifications_service() -> DispatchRoutineNotificationsResponse:
-    targets = get_routine_notification_targets()
+    targets = await get_routine_notification_targets()
 
     if not get_bool("NOTIFICATION_DISPATCH_ENABLED"):
         return DispatchRoutineNotificationsResponse(

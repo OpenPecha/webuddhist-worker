@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from worker_api.notifications.models.routine_models import (
@@ -11,6 +11,31 @@ from worker_api.notifications.models.routine_models import (
     RoutineSession,
     RoutineTimeBlock,
 )
+
+
+@dataclass(frozen=True)
+class PushDeviceRow:
+    token: str
+    platform: str
+
+
+def get_active_push_devices_by_email(db: Session, email: str) -> list[PushDeviceRow]:
+    rows = db.execute(
+        text(
+            """
+            SELECT pdt.token, pdt.platform
+            FROM push_device_tokens pdt
+            INNER JOIN users u ON u.id = pdt.user_id
+            WHERE LOWER(u.email) = LOWER(:email)
+              AND pdt.is_active = true
+            """
+        ),
+        {"email": email.strip()},
+    ).all()
+    return [
+        PushDeviceRow(token=str(row.token), platform=str(row.platform).lower())
+        for row in rows
+    ]
 
 
 @dataclass(frozen=True)
