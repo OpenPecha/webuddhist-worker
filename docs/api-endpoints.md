@@ -267,7 +267,7 @@ Processes due plan reminders from the database.
 
 Returns a **preview** of users who would receive routine notifications at the current UTC time, without sending anything.
 
-Proxies to the backend `GET /internal/routine-notification-targets` endpoint, which matches routine time blocks whose local time equals the current minute in each user's timezone (`Routine.timezone`, with a fallback to the time block creation offset).
+Proxies to the backend `GET /internal/routine-notification-targets` endpoint, which matches routine time blocks whose stored UTC time (`routine_time_blocks.time_utc`) equals the current UTC minute. Only **`PLAN`** and **`SERIES`** sessions are included.
 
 **Response (200):**
 
@@ -284,9 +284,9 @@ Proxies to the backend `GET /internal/routine-notification-targets` endpoint, wh
         {
           "user_id": "uuid",
           "notification": {
-            "title": "Day 3",
-            "body": "Time for your daily practice.",
-            "custom_image_url": null
+            "title": "Day 3 — Breath Awareness",
+            "body": "Take 10 minutes for today's practice.",
+            "image_url": "https://..."
           },
           "push_devices": [
             { "token": "...", "platform": "android" }
@@ -298,13 +298,25 @@ Proxies to the backend `GET /internal/routine-notification-targets` endpoint, wh
 }
 ```
 
-**Session types:** `PLAN`, `SERIES`, `RECITATION`, `RECITATION_COLLECTION`, `ACCUMULATION`, `TIMER`
+| Field | Description |
+|-------|-------------|
+| `notification.title` | Resolved title sent in the push |
+| `notification.body` | Resolved body sent in the push |
+| `notification.image_url` | Presigned image URL sent in the push (`notification.image` and `data.image_url`). Empty when no image is resolved. |
+| `source_image_url` | Group-level plan/series cover preview only; not duplicated in the FCM data payload |
+
+**Session types in routine dispatch:** `PLAN`, `SERIES` only
 
 ---
 
 ### `POST /internal/dispatch-routine-notifications`
 
-Builds the same target list as the preview endpoint, then sends FCM push notifications to each device.
+Builds the same target list as the preview endpoint, then sends FCM push notifications to each device. Each push includes:
+
+- Display notification: `title`, `body`, optional `image`
+- Data payload: `session_type`, `source_id`, `title`, `body`, `image_url`
+
+See [notification-format.md](./notification-format.md) for resolution rules and examples.
 
 **Response (200):** Same as the preview response, plus dispatch counts:
 
