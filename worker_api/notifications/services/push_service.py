@@ -7,7 +7,6 @@ import redis
 from worker_api.config import get, get_bool, get_int
 from worker_api.notifications.enums import PushPlatform
 from worker_api.notifications.models.reminder_models import UpcomingReminder
-from worker_api.notifications.services.notification_content_service import build_notification_content
 from worker_api.notifications.services.push.config_loader import is_push_configured
 from worker_api.notifications.services.push.fcm_client import (
     build_routine_notification_data,
@@ -49,7 +48,12 @@ def _mark_dispatched(reminder_id: UUID) -> None:
     )
 
 
-async def send_push_notification(reminder: UpcomingReminder, title: str, body: str) -> None:
+async def send_push_notification(
+    reminder: UpcomingReminder,
+    title: str,
+    body: str,
+    image_url: str | None = None,
+) -> None:
     if not is_push_configured(reminder.platform):
         logger.warning(
             "Push not configured for platform %s; skipping send for reminder %s",
@@ -63,11 +67,13 @@ async def send_push_notification(reminder: UpcomingReminder, title: str, body: s
             device_token=reminder.device_token,
             title=title,
             body=body,
+            image_url=image_url,
             data=build_routine_notification_data(
                 session_type="PLAN",
                 source_id=reminder.plan_id,
                 title=title,
                 body=body,
+                image_url=image_url,
             ),
         )
         return
