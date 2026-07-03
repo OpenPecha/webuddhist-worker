@@ -61,7 +61,18 @@ def is_fcm_configured() -> bool:
     return bool(get("GOOGLE_CLOUD_PROJECT").strip())
 
 
+def _normalize_platform(platform: str) -> str:
+    value = platform
+    if hasattr(platform, "value"):
+        value = platform.value
+    value = str(value)
+    if "." in value:
+        value = value.rsplit(".", 1)[-1]
+    return value.lower()
+
+
 def is_push_configured(platform: str) -> bool:
-    if platform in ("android", "ios"):
+    normalized = _normalize_platform(platform)
+    if normalized in ("android", "ios"):
         return is_fcm_configured()
     return False
