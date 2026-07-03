@@ -5,7 +5,7 @@ from worker_api.config import get_bool, get_int
 from worker_api.db.database import SessionLocal
 from worker_api.notifications.repositories import reminder_repository
 from worker_api.notifications.schemas import DispatchDueNotificationsResponse
-from worker_api.notifications.services.notification_content_service import build_notification_content
+from worker_api.notifications.services.notification_content_service import resolve_notification_content
 from worker_api.notifications.services.push_service import (
     _already_dispatched,
     _mark_dispatched,
@@ -36,9 +36,14 @@ async def dispatch_due_notifications_service() -> DispatchDueNotificationsRespon
                 skipped += 1
                 continue
 
-            title, body = build_notification_content(reminder)
+            content = await resolve_notification_content(reminder)
             try:
-                await send_push_notification(reminder, title, body)
+                await send_push_notification(
+                    reminder,
+                    content.title,
+                    content.body,
+                    content.image_url,
+                )
                 reminder_repository.mark_sent(db, reminder)
                 reminder_repository.create_reminder(
                     db,
