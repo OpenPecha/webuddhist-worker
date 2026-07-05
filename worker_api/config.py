@@ -40,7 +40,6 @@ DEFAULTS = dict(
     NOTIFICATION_DEFAULT_TITLE="WebBuddhist",
     NOTIFICATION_DEFAULT_BODY="Time for your daily practice.",
 
-NOTIFICATION_DISPATCH_SECRET_TOKEN="Dispatch",
     # Optional Redis idempotency during dispatch
     NOTIFICATION_IDEMPOTENCY_ENABLED="false",
     NOTIFICATION_IDEMPOTENCY_TTL_SECONDS=3600,
