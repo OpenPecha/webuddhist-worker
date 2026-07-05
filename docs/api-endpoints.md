@@ -57,13 +57,13 @@ Returns basic service metadata.
 
 ### `POST /audio/generate`
 
-Generates text-to-speech audio using Gemini or Monlam TTS (depending on language and configuration), uploads the result to S3, and returns a presigned URL.
+Generates text-to-speech audio using Monlam TTS for Tibetan (`bo`) or Gemini TTS for all other language codes, uploads the result to S3, and returns a presigned URL.
 
 **Request body:**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `language` | string | Yes | Language code for TTS (e.g. `bo`, `en`) |
+| `language` | string | Yes | Language code for TTS (e.g. `bo`, `en`, `fr`). Tibetan (`bo`) uses Monlam; all other codes use Gemini. |
 | `text` | string | No* | Raw text to synthesize |
 | `day_id` | UUID | No* | Plan day ID — generates audio for all text subtasks in that day |
 | `sub_task_id` | UUID | No* | Single subtask ID — generates audio for that subtask only |
