@@ -1,6 +1,6 @@
 import logging
 
-from worker_api.config import get
+from worker_api.config import get, get_random_default_notification_body
 from worker_api.db.database import SessionLocal
 from worker_api.notifications.repositories import routine_notification_repository as repo
 from worker_api.notifications.schemas import (
@@ -25,7 +25,7 @@ async def send_test_notification_service(
     request: SendTestNotificationRequest,
 ) -> SendTestNotificationResponse:
     title = request.title or get("NOTIFICATION_DEFAULT_TITLE")
-    body = request.body or get("NOTIFICATION_DEFAULT_BODY")
+    body = request.body or get_random_default_notification_body()
     data = build_routine_notification_data(
         session_type=request.session_type.value,
         source_id=request.source_id,

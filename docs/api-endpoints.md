@@ -346,7 +346,7 @@ Sends a push notification directly for testing. Does not read from or write to t
 |-------|------|----------|-------------|
 | `session_type` | string | Yes | Routine session type for the FCM data payload |
 | `title` | string | No | Notification title (default: `NOTIFICATION_DEFAULT_TITLE`) |
-| `body` | string | No | Notification body (default: `NOTIFICATION_DEFAULT_BODY`) |
+| `body` | string | No | Notification body (default: random from `NOTIFICATION_DEFAULT_BODIES`) |
 | `source_id` | UUID | No | Related entity UUID for deep linking |
 | `device_token` | string | No* | Send to a specific FCM token |
 | `email` | string | No* | Send to all active push devices for this user email |

@@ -1,6 +1,6 @@
 import logging
 
-from worker_api.config import get
+from worker_api.config import get, get_random_default_notification_body
 from worker_api.notifications.models.reminder_models import UpcomingReminder
 from worker_api.notifications.schemas import NotificationContent
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def build_notification_content(reminder: UpcomingReminder) -> tuple[str, str]:
     routine = reminder.routine_config or {}
     title = get("NOTIFICATION_DEFAULT_TITLE")
-    body = get("NOTIFICATION_DEFAULT_BODY")
+    body = get_random_default_notification_body()
 
     if routine.get("message_template"):
         body = routine["message_template"]

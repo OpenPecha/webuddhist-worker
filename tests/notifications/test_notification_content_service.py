@@ -21,7 +21,7 @@ class TestBuildNotificationContent:
         )
         title, body = build_notification_content(reminder)
         assert title == DEFAULTS["NOTIFICATION_DEFAULT_TITLE"]
-        assert body == DEFAULTS["NOTIFICATION_DEFAULT_BODY"]
+        assert body in DEFAULTS["NOTIFICATION_DEFAULT_BODIES"]
 
     def test_plan_name_template(self):
         reminder = UpcomingReminder(

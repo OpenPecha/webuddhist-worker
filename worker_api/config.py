@@ -1,4 +1,6 @@
+import json
 import os
+import random
 import re
 
 DEFAULTS = dict(
@@ -38,7 +40,13 @@ DEFAULTS = dict(
 
     # Notification content defaults
     NOTIFICATION_DEFAULT_TITLE="WebBuddhist",
-    NOTIFICATION_DEFAULT_BODY="Time for your daily practice.",
+    NOTIFICATION_DEFAULT_BODIES=[
+        "Time for your daily practice.",
+        "Your practice awaits.",
+        "Pause. Breathe. Practice.",
+        "Even a few minutes counts. Show up for yourself today.",
+        "Come back to the present. Your practice begins now.",
+    ],
 
     # Optional Redis idempotency during dispatch
     NOTIFICATION_IDEMPOTENCY_ENABLED="false",
@@ -54,6 +62,22 @@ def get(key: str) -> str:
         return os.environ[key]
     else:
         return str(DEFAULTS[key])
+
+
+def get_default_notification_bodies() -> list[str]:
+    raw = os.environ.get("NOTIFICATION_DEFAULT_BODIES", "").strip()
+    if raw:
+        if raw.startswith("["):
+            bodies = json.loads(raw)
+        else:
+            bodies = [part.strip() for part in raw.split("|") if part.strip()]
+        if isinstance(bodies, list) and bodies:
+            return [str(body) for body in bodies]
+    return list(DEFAULTS["NOTIFICATION_DEFAULT_BODIES"])
+
+
+def get_random_default_notification_body() -> str:
+    return random.choice(get_default_notification_bodies())
 
 
 def get_float(key: str) -> float:

@@ -70,10 +70,10 @@ When no custom content is configured:
 | Field   | Default value                    |
 |---------|----------------------------------|
 | `title` | `WebBuddhist`                    |
-| `body`  | `Time for your daily practice.`  |
+| `body`  | Random message from `NOTIFICATION_DEFAULT_BODIES` |
 | `image_url` | Empty string                 |
 
-Config keys: `NOTIFICATION_DEFAULT_TITLE`, `NOTIFICATION_DEFAULT_BODY`.
+Config keys: `NOTIFICATION_DEFAULT_TITLE`, `NOTIFICATION_DEFAULT_BODIES` (randomly selected).
 
 ## How title, body, and image are resolved
 

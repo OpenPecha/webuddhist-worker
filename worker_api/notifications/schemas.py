@@ -122,7 +122,7 @@ class SendTestNotificationRequest(BaseModel):
     )
     body: str | None = Field(
         default=None,
-        description="Notification body shown to the user. Defaults to NOTIFICATION_DEFAULT_BODY.",
+        description="Notification body shown to the user. Defaults to a random NOTIFICATION_DEFAULT_BODIES message.",
     )
     session_type: SessionType = Field(
         ...,
