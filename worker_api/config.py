@@ -29,6 +29,13 @@ DEFAULTS = dict(
     MONLAM_TTS_MODEL_NAME="",
     MONLAM_TTS_VOICE_NAME="",
 
+    # Audio job SQS consumer (backend producer → worker consumer)
+    AUDIO_SQS_QUEUE_URL="",
+    AUDIO_SQS_WAIT_TIME_SECONDS=20,
+    AUDIO_SQS_VISIBILITY_TIMEOUT_SECONDS=900,
+    AUDIO_SQS_MAX_MESSAGES=1,
+    AUDIO_SQS_POLL_ENABLED="true",
+
     # Notification dispatch (Cloud Scheduler -> worker)
     NOTIFICATION_DISPATCH_SECRET_TOKEN="Dispatch",
     NOTIFICATION_DISPATCH_BATCH_SIZE=100,
