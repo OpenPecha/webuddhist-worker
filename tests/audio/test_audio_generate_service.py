@@ -368,6 +368,21 @@ class TestBuildSubtaskTimestamps:
         assert timestamps[0]["end_ms"] > 0
 
 
+class TestUploadDayAudio:
+    @patch("worker_api.audio.services.audio_generate_service.upload_bytes")
+    def test_upload_day_audio_builds_key(self, mock_upload):
+        from worker_api.audio.services.audio_generate_service import _upload_day_audio
+
+        plan_id = uuid4()
+        plan_item_id = uuid4()
+
+        key = _upload_day_audio(b"wav", plan_id, plan_item_id)
+
+        assert key.startswith(f"audio/plan_days/{plan_id}/{plan_item_id}/")
+        assert key.endswith(".wav")
+        mock_upload.assert_called_once()
+
+
 class TestGenerateAudioFromText:
     """Tests for _generate_audio_from_text helper function."""
 
