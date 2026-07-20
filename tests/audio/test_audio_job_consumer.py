@@ -1,6 +1,6 @@
 """Tests for SQS audio job consumer."""
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -14,27 +14,18 @@ class TestProcessAudioJobMessage:
     @pytest.mark.asyncio
     @patch("worker_api.audio.services.audio_job_consumer.delete_audio_job_message")
     @patch("worker_api.audio.services.audio_job_consumer.generate_plan_audio_service", new_callable=AsyncMock)
-    @patch("worker_api.audio.services.audio_job_consumer.mark_audio_job_completed")
-    @patch("worker_api.audio.services.audio_job_consumer.mark_audio_job_processing")
-    @patch("worker_api.audio.services.audio_job_consumer.get_audio_job_by_id")
-    @patch("worker_api.audio.services.audio_job_consumer.SessionLocal")
+    @patch("worker_api.audio.services.audio_job_consumer.update_audio_job_status", new_callable=AsyncMock)
+    @patch("worker_api.audio.services.audio_job_consumer.get_audio_job_status", new_callable=AsyncMock)
     async def test_processes_day_job_successfully(
         self,
-        mock_session_local,
         mock_get_job,
-        mock_mark_processing,
-        mock_mark_completed,
+        mock_update_status,
         mock_generate,
         mock_delete,
     ):
         job_id = uuid4()
         day_id = uuid4()
-        mock_db = MagicMock()
-        mock_session_local.return_value.__enter__.return_value = mock_db
-
-        existing = MagicMock()
-        existing.status = AudioJobStatus.PENDING.value
-        mock_get_job.return_value = existing
+        mock_get_job.return_value = {"job_id": str(job_id), "status": AudioJobStatus.PENDING.value}
         mock_generate.return_value = {
             "audio_url": "https://example.com/a.wav",
             "audio_duration_ms": 1200,
@@ -57,34 +48,26 @@ class TestProcessAudioJobMessage:
 
         await process_audio_job_message(message)
 
-        mock_mark_processing.assert_called_once()
+        assert mock_update_status.await_count == 2
+        assert mock_update_status.await_args_list[0].kwargs["status"] == AudioJobStatus.PROCESSING
+        assert mock_update_status.await_args_list[1].kwargs["status"] == AudioJobStatus.COMPLETED
         mock_generate.assert_awaited_once()
-        mock_mark_completed.assert_called_once()
         mock_delete.assert_called_once_with("abc")
 
     @pytest.mark.asyncio
     @patch("worker_api.audio.services.audio_job_consumer.delete_audio_job_message")
     @patch("worker_api.audio.services.audio_job_consumer.generate_plan_audio_service", new_callable=AsyncMock)
-    @patch("worker_api.audio.services.audio_job_consumer.mark_audio_job_failed")
-    @patch("worker_api.audio.services.audio_job_consumer.mark_audio_job_processing")
-    @patch("worker_api.audio.services.audio_job_consumer.get_audio_job_by_id")
-    @patch("worker_api.audio.services.audio_job_consumer.SessionLocal")
+    @patch("worker_api.audio.services.audio_job_consumer.update_audio_job_status", new_callable=AsyncMock)
+    @patch("worker_api.audio.services.audio_job_consumer.get_audio_job_status", new_callable=AsyncMock)
     async def test_marks_failed_on_generation_error(
         self,
-        mock_session_local,
         mock_get_job,
-        mock_mark_processing,
-        mock_mark_failed,
+        mock_update_status,
         mock_generate,
         mock_delete,
     ):
         job_id = uuid4()
-        mock_db = MagicMock()
-        mock_session_local.return_value.__enter__.return_value = mock_db
-
-        existing = MagicMock()
-        existing.status = AudioJobStatus.PENDING.value
-        mock_get_job.return_value = existing
+        mock_get_job.return_value = {"job_id": str(job_id), "status": AudioJobStatus.PENDING.value}
         mock_generate.side_effect = HTTPException(status_code=404, detail={"message": "Sub task not found"})
 
         message = {
@@ -103,29 +86,24 @@ class TestProcessAudioJobMessage:
 
         await process_audio_job_message(message)
 
-        mock_mark_failed.assert_called_once()
-        assert "Sub task not found" in mock_mark_failed.call_args.kwargs["error_message"]
+        assert mock_update_status.await_args_list[-1].kwargs["status"] == AudioJobStatus.FAILED
+        assert "Sub task not found" in mock_update_status.await_args_list[-1].kwargs["error_message"]
         mock_delete.assert_called_once_with("abc")
 
     @pytest.mark.asyncio
     @patch("worker_api.audio.services.audio_job_consumer.delete_audio_job_message")
     @patch("worker_api.audio.services.audio_job_consumer.generate_plan_audio_service", new_callable=AsyncMock)
-    @patch("worker_api.audio.services.audio_job_consumer.get_audio_job_by_id")
-    @patch("worker_api.audio.services.audio_job_consumer.SessionLocal")
+    @patch("worker_api.audio.services.audio_job_consumer.update_audio_job_status", new_callable=AsyncMock)
+    @patch("worker_api.audio.services.audio_job_consumer.get_audio_job_status", new_callable=AsyncMock)
     async def test_skips_completed_job(
         self,
-        mock_session_local,
         mock_get_job,
+        mock_update_status,
         mock_generate,
         mock_delete,
     ):
         job_id = uuid4()
-        mock_db = MagicMock()
-        mock_session_local.return_value.__enter__.return_value = mock_db
-
-        existing = MagicMock()
-        existing.status = AudioJobStatus.COMPLETED.value
-        mock_get_job.return_value = existing
+        mock_get_job.return_value = {"job_id": str(job_id), "status": AudioJobStatus.COMPLETED.value}
 
         message = {
             "ReceiptHandle": "abc",
@@ -135,4 +113,5 @@ class TestProcessAudioJobMessage:
         await process_audio_job_message(message)
 
         mock_generate.assert_not_called()
+        mock_update_status.assert_not_awaited()
         mock_delete.assert_called_once_with("abc")

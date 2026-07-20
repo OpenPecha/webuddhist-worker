@@ -6,25 +6,26 @@ from uuid import UUID
 from fastapi import HTTPException
 
 from worker_api.audio.enums import AudioJobStatus, MonlamVoiceName, PlanAudioType
-from worker_api.audio.repositories.audio_job_repository import (
-    get_audio_job_by_id,
-    mark_audio_job_completed,
-    mark_audio_job_failed,
-    mark_audio_job_processing,
-)
 from worker_api.audio.services.audio_generate_service import generate_plan_audio_service
+from worker_api.audio.services.backend_client import (
+    get_audio_job_status,
+    update_audio_job_status,
+)
 from worker_api.audio.sqs_client import (
     delete_audio_job_message,
     is_audio_sqs_poll_enabled,
     parse_audio_job_message_body,
     receive_audio_job_messages,
 )
-from worker_api.db.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
 _POLL_IDLE_SECONDS = 5
 _POLL_ERROR_SECONDS = 10
+_TERMINAL_STATUSES = {
+    AudioJobStatus.COMPLETED.value,
+    AudioJobStatus.FAILED.value,
+}
 
 
 def _parse_uuid(value: Any) -> Optional[UUID]:
@@ -85,22 +86,21 @@ async def process_audio_job_message(message: Dict[str, Any]) -> None:
             delete_audio_job_message(receipt_handle)
         return
 
-    with SessionLocal() as db:
-        existing = get_audio_job_by_id(db=db, job_id=job_id)
-        if not existing:
-            logger.error("Audio job not found: %s", job_id)
-            if receipt_handle:
-                delete_audio_job_message(receipt_handle)
-            return
-        if existing.status in {
-            AudioJobStatus.COMPLETED.value,
-            AudioJobStatus.FAILED.value,
-        }:
-            logger.info("Skipping already finished audio job %s (%s)", job_id, existing.status)
-            if receipt_handle:
-                delete_audio_job_message(receipt_handle)
-            return
-        mark_audio_job_processing(db=db, job_id=job_id)
+    existing = await get_audio_job_status(job_id=job_id)
+    if not existing:
+        logger.error("Audio job not found on backend: %s", job_id)
+        if receipt_handle:
+            delete_audio_job_message(receipt_handle)
+        return
+
+    existing_status = str(existing.get("status") or "")
+    if existing_status in _TERMINAL_STATUSES:
+        logger.info("Skipping already finished audio job %s (%s)", job_id, existing_status)
+        if receipt_handle:
+            delete_audio_job_message(receipt_handle)
+        return
+
+    await update_audio_job_status(job_id=job_id, status=AudioJobStatus.PROCESSING)
 
     try:
         day_id = _parse_uuid(body.get("day_id"))
@@ -120,16 +120,19 @@ async def process_audio_job_message(message: Dict[str, Any]) -> None:
         )
         normalized = _normalize_result(result)
 
-        # Job row is status-only metadata; content audio lives on sub_tasks / plan_item_audio
-        # (written by generate_plan_audio_service above).
-        with SessionLocal() as db:
-            mark_audio_job_completed(db=db, job_id=job_id, result=normalized)
-
+        await update_audio_job_status(
+            job_id=job_id,
+            status=AudioJobStatus.COMPLETED,
+            result=normalized,
+        )
         logger.info("Completed audio job %s", job_id)
     except Exception as exc:
         logger.exception("Failed audio job %s", job_id)
-        with SessionLocal() as db:
-            mark_audio_job_failed(db=db, job_id=job_id, error_message=_error_detail(exc))
+        await update_audio_job_status(
+            job_id=job_id,
+            status=AudioJobStatus.FAILED,
+            error_message=_error_detail(exc),
+        )
 
     if receipt_handle:
         delete_audio_job_message(receipt_handle)
