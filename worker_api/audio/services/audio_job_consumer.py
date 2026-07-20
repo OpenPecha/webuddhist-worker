@@ -100,7 +100,23 @@ async def process_audio_job_message(message: Dict[str, Any]) -> None:
             delete_audio_job_message(receipt_handle)
         return
 
-    await update_audio_job_status(job_id=job_id, status=AudioJobStatus.PROCESSING)
+    try:
+        claimed = await update_audio_job_status(job_id=job_id, status=AudioJobStatus.PROCESSING)
+    except HTTPException as exc:
+        # Another worker already claimed this job (duplicate SQS delivery).
+        if exc.status_code == 409:
+            logger.info("Skipping already claimed audio job %s", job_id)
+            if receipt_handle:
+                delete_audio_job_message(receipt_handle)
+            return
+        raise
+
+    claimed_status = str(claimed.get("status") or "")
+    if claimed_status != AudioJobStatus.PROCESSING.value:
+        logger.info("Skipping audio job %s after claim (%s)", job_id, claimed_status)
+        if receipt_handle:
+            delete_audio_job_message(receipt_handle)
+        return
 
     try:
         day_id = _parse_uuid(body.get("day_id"))
