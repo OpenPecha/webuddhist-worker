@@ -78,6 +78,10 @@ class TestProcessAudioJobMessage:
         job_id = uuid4()
         day_id = uuid4()
         mock_get_job.return_value = {"job_id": str(job_id), "status": AudioJobStatus.PENDING.value}
+        mock_update_status.side_effect = [
+            {"job_id": str(job_id), "status": AudioJobStatus.PROCESSING.value},
+            {"job_id": str(job_id), "status": AudioJobStatus.COMPLETED.value},
+        ]
         mock_generate.return_value = {
             "audio_url": "https://example.com/a.wav",
             "audio_duration_ms": 1200,
@@ -120,6 +124,10 @@ class TestProcessAudioJobMessage:
     ):
         job_id = uuid4()
         mock_get_job.return_value = {"job_id": str(job_id), "status": AudioJobStatus.PENDING.value}
+        mock_update_status.side_effect = [
+            {"job_id": str(job_id), "status": AudioJobStatus.PROCESSING.value},
+            {"job_id": str(job_id), "status": AudioJobStatus.FAILED.value},
+        ]
         mock_generate.side_effect = HTTPException(status_code=404, detail={"message": "Sub task not found"})
 
         message = {
@@ -170,6 +178,81 @@ class TestProcessAudioJobMessage:
 
     @pytest.mark.asyncio
     @patch("worker_api.audio.services.audio_job_consumer.delete_audio_job_message")
+    @patch("worker_api.audio.services.audio_job_consumer.generate_plan_audio_service", new_callable=AsyncMock)
+    @patch("worker_api.audio.services.audio_job_consumer.update_audio_job_status", new_callable=AsyncMock)
+    @patch("worker_api.audio.services.audio_job_consumer.get_audio_job_status", new_callable=AsyncMock)
+    async def test_skips_when_claim_conflicts(
+        self,
+        mock_get_job,
+        mock_update_status,
+        mock_generate,
+        mock_delete,
+    ):
+        job_id = uuid4()
+        mock_get_job.return_value = {"job_id": str(job_id), "status": AudioJobStatus.PENDING.value}
+        mock_update_status.side_effect = HTTPException(
+            status_code=409,
+            detail={"error": "Bad request", "message": "Audio job is already being processed"},
+        )
+
+        message = {
+            "ReceiptHandle": "abc",
+            "Body": json.dumps(
+                {
+                    "job_id": str(job_id),
+                    "day_id": str(uuid4()),
+                    "language": "bo",
+                    "type": "TEXT_READING",
+                }
+            ),
+        }
+
+        await process_audio_job_message(message)
+
+        mock_generate.assert_not_called()
+        mock_update_status.assert_awaited_once()
+        assert mock_update_status.await_args.kwargs["status"] == AudioJobStatus.PROCESSING
+        mock_delete.assert_called_once_with("abc")
+
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_job_consumer.delete_audio_job_message")
+    @patch("worker_api.audio.services.audio_job_consumer.generate_plan_audio_service", new_callable=AsyncMock)
+    @patch("worker_api.audio.services.audio_job_consumer.update_audio_job_status", new_callable=AsyncMock)
+    @patch("worker_api.audio.services.audio_job_consumer.get_audio_job_status", new_callable=AsyncMock)
+    async def test_skips_when_claim_returns_terminal(
+        self,
+        mock_get_job,
+        mock_update_status,
+        mock_generate,
+        mock_delete,
+    ):
+        job_id = uuid4()
+        mock_get_job.return_value = {"job_id": str(job_id), "status": AudioJobStatus.PENDING.value}
+        mock_update_status.return_value = {
+            "job_id": str(job_id),
+            "status": AudioJobStatus.COMPLETED.value,
+        }
+
+        message = {
+            "ReceiptHandle": "abc",
+            "Body": json.dumps(
+                {
+                    "job_id": str(job_id),
+                    "day_id": str(uuid4()),
+                    "language": "bo",
+                    "type": "TEXT_READING",
+                }
+            ),
+        }
+
+        await process_audio_job_message(message)
+
+        mock_generate.assert_not_called()
+        mock_update_status.assert_awaited_once()
+        mock_delete.assert_called_once_with("abc")
+
+    @pytest.mark.asyncio
+    @patch("worker_api.audio.services.audio_job_consumer.delete_audio_job_message")
     @patch("worker_api.audio.services.audio_job_consumer.parse_audio_job_message_body", return_value=None)
     async def test_deletes_invalid_body(self, _parse, mock_delete):
         await process_audio_job_message({"ReceiptHandle": "abc", "Body": "bad"})
@@ -210,6 +293,10 @@ class TestProcessAudioJobMessage:
     ):
         job_id = uuid4()
         mock_get_job.return_value = {"job_id": str(job_id), "status": AudioJobStatus.PENDING.value}
+        mock_update_status.side_effect = [
+            {"job_id": str(job_id), "status": AudioJobStatus.PROCESSING.value},
+            {"job_id": str(job_id), "status": AudioJobStatus.FAILED.value},
+        ]
         message = {
             "ReceiptHandle": "abc",
             "Body": json.dumps(
@@ -243,6 +330,10 @@ class TestProcessAudioJobMessage:
     ):
         job_id = uuid4()
         mock_get_job.return_value = {"job_id": str(job_id), "status": AudioJobStatus.PENDING.value}
+        mock_update_status.side_effect = [
+            {"job_id": str(job_id), "status": AudioJobStatus.PROCESSING.value},
+            {"job_id": str(job_id), "status": AudioJobStatus.FAILED.value},
+        ]
         message = {
             "ReceiptHandle": "abc",
             "Body": json.dumps({"job_id": str(job_id), "language": "en"}),
