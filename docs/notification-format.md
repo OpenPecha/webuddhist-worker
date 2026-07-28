@@ -60,8 +60,12 @@ Routine notifications are sent only for **`PLAN`** and **`SERIES`** sessions.
 |----------------|------------------------|
 | `PLAN`         | Plan UUID              |
 | `SERIES`       | Series UUID            |
+| `CHAT`         | Chat room UUID         |
 
 Plan reminder dispatches (enrollment API) always use `session_type: "PLAN"`.
+
+Chat message pushes use `session_type: "CHAT"` plus dedicated routing fields
+(`notification_type`, `chat_kind`, `room_id`, `message_id`, `sender_id`, `group_id`).
 
 ## Default content
 
@@ -251,6 +255,81 @@ When the day notification uses `image_type = CUSTOM`, `image_url` points to the 
 }
 ```
 
+### Chat message (direct)
+
+```json
+{
+  "notification": {
+    "title": "Alice Doe",
+    "body": "Hey, are you free later?"
+  },
+  "data": {
+    "notification_type": "CHAT_MESSAGE",
+    "session_type": "CHAT",
+    "chat_kind": "PRIVATE",
+    "room_id": "c1d2e3f4-a5b6-7890-abcd-ef1234567890",
+    "message_id": "d2e3f4a5-b6c7-8901-bcde-f12345678901",
+    "sender_id": "e3f4a5b6-c7d8-9012-cdef-123456789012",
+    "group_id": "",
+    "source_id": "c1d2e3f4-a5b6-7890-abcd-ef1234567890",
+    "title": "Alice Doe",
+    "body": "Hey, are you free later?",
+    "image_url": ""
+  }
+}
+```
+
+### Chat message (group)
+
+```json
+{
+  "notification": {
+    "title": "Morning Sangha",
+    "body": "Alice Doe: Practice starts in 10 minutes"
+  },
+  "data": {
+    "notification_type": "CHAT_MESSAGE",
+    "session_type": "CHAT",
+    "chat_kind": "GROUP",
+    "room_id": "c1d2e3f4-a5b6-7890-abcd-ef1234567890",
+    "message_id": "d2e3f4a5-b6c7-8901-bcde-f12345678901",
+    "sender_id": "e3f4a5b6-c7d8-9012-cdef-123456789012",
+    "group_id": "f4a5b6c7-d8e9-0123-def0-234567890123",
+    "source_id": "c1d2e3f4-a5b6-7890-abcd-ef1234567890",
+    "title": "Morning Sangha",
+    "body": "Alice Doe: Practice starts in 10 minutes",
+    "image_url": ""
+  }
+}
+```
+
+## Chat notification delivery
+
+Chat pushes are event-driven:
+
+1. Backend persists the chat message.
+2. Backend enqueues `{ "event_type": "CHAT_MESSAGE_CREATED", "version": 1, "message_id": "..." }` to `CHAT_NOTIFICATION_SQS_QUEUE_URL`.
+3. Worker consumes the event, paginates `GET /internal/chat-notification-targets/{message_id}`, and sends FCM.
+4. Permanently invalid tokens are deactivated via `POST /internal/push-devices/deactivate`.
+
+**Recipients:**
+
+| Chat kind | Recipients |
+|-----------|------------|
+| `PRIVATE` | The other participant only |
+| `GROUP` | All users who joined the author group (`author_group_joins`), excluding the sender |
+
+Configure:
+
+| Variable | Purpose |
+|----------|---------|
+| `CHAT_NOTIFICATION_SQS_QUEUE_URL` | Dedicated SQS queue (backend producer, worker consumer) |
+| `CHAT_NOTIFICATION_SQS_POLL_ENABLED` | Worker poll kill switch (`true`/`false`) |
+| `CHAT_NOTIFICATION_SEND_CONCURRENCY` | Max concurrent FCM sends per event |
+| `CHAT_NOTIFICATION_IDEMPOTENCY_TTL_SECONDS` | Redis TTL for `message_id + push_device_id` dedupe |
+
+Attach a dead-letter queue (DLQ) to the chat notification SQS queue for poison messages.
+
 ## Preview API vs push payload
 
 The backend preview endpoint (`GET /internal/routine-notification-targets`) returns additional server-side fields that are **not** sent to the device:
@@ -289,3 +368,4 @@ When the user taps a notification:
 |----------------|------------------------|
 | `PLAN`         | Plan detail / day view |
 | `SERIES`       | Series player          |
+| `CHAT`         | Chat room / DM thread using `room_id` (`chat_kind` + optional `group_id`) |

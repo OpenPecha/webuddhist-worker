@@ -165,3 +165,38 @@ class SendTestNotificationResponse(BaseModel):
     sent: int
     failed: int
     deliveries: list[SendTestNotificationDelivery]
+
+
+class ChatPushDeviceTarget(BaseModel):
+    id: UUID
+    token: str
+    platform: str
+
+
+class ChatNotificationRecipient(BaseModel):
+    user_id: UUID
+    push_devices: list[ChatPushDeviceTarget]
+
+
+class ChatNotificationTargetsResponse(BaseModel):
+    message_id: UUID
+    room_id: UUID
+    sender_id: UUID
+    chat_kind: str
+    group_id: UUID | None = None
+    title: str
+    body: str
+    recipients: list[ChatNotificationRecipient]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
+class DeactivatePushDeviceRequest(BaseModel):
+    push_device_id: UUID
+
+
+class DeactivatePushDeviceResponse(BaseModel):
+    push_device_id: UUID
+    deactivated: bool
