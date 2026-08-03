@@ -8,6 +8,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from ..config import get
 from worker_api.audio.services.audio_job_consumer import run_audio_sqs_consumer
+from worker_api.notifications.services.chat_notification_consumer import (
+    run_chat_notification_sqs_consumer,
+)
 
 mongodb_client = None
 mongodb = None
@@ -32,19 +35,23 @@ async def lifespan(api: FastAPI):
         raise
 
     stop_event = asyncio.Event()
-    consumer_task = asyncio.create_task(run_audio_sqs_consumer(stop_event))
+    consumer_tasks = [
+        asyncio.create_task(run_audio_sqs_consumer(stop_event)),
+        asyncio.create_task(run_chat_notification_sqs_consumer(stop_event)),
+    ]
 
     yield
 
     stop_event.set()
-    try:
-        await asyncio.wait_for(consumer_task, timeout=5)
-    except asyncio.TimeoutError:
-        consumer_task.cancel()
+    for consumer_task in consumer_tasks:
         try:
-            await consumer_task
-        except asyncio.CancelledError:
-            pass
+            await asyncio.wait_for(consumer_task, timeout=5)
+        except asyncio.TimeoutError:
+            consumer_task.cancel()
+            try:
+                await consumer_task
+            except asyncio.CancelledError:
+                pass
 
     if mongodb_client:
         mongodb_client.close()

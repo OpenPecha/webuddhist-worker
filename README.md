@@ -34,6 +34,8 @@ Set at least:
 | `NOTIFICATION_DISPATCH_SECRET_TOKEN` | Shared secret sent as `X-Dispatch-Token` on internal backend calls |
 | `DATABASE_URL` | Worker-owned Postgres (reminders / notification tables only) |
 | `AUDIO_SQS_QUEUE_URL` | SQS queue for audio jobs produced by the backend |
+| `CHAT_NOTIFICATION_SQS_QUEUE_URL` | SQS queue for chat message notification events produced by the backend |
+| `CACHE_CONNECTION_STRING` | Redis URL used for chat notification per-device idempotency |
 
 The worker talks to the backend for audio job status, generation payloads
 (day/subtask content), and persisting generation results. Do **not** point
