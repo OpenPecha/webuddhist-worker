@@ -15,8 +15,6 @@ This document describes every HTTP endpoint exposed by the WebBuddhist Worker AP
 | GET | `/health` | None | Liveness check |
 | GET | `/props` | None | Service metadata |
 | POST | `/audio/generate` | None | Generate TTS audio |
-| POST | `/llm/chat` | None | Chat with Gemini |
-| GET | `/llm/view` | None | Buddhist tradition onboarding demo UI |
 | POST | `/notifications/reminders` | None | Enroll a plan reminder |
 | PUT | `/notifications/reminders/{user_id}/{plan_id}` | None | Update a pending reminder |
 | DELETE | `/notifications/reminders/{user_id}/{plan_id}` | None | Cancel a pending reminder |
@@ -95,43 +93,6 @@ When `day_id` is provided but no audio segments are produced, returns an empty a
 
 - `404` — Subtask not found (`sub_task_id` mode)
 - `400` — Invalid content type for audio generation
-
----
-
-## LLM
-
-### `POST /llm/chat`
-
-Sends a prompt to Google Gemini and returns the model's text response.
-
-**Request body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `prompt` | string | Yes | User message |
-| `system_prompt` | string | No | System instruction for the model |
-| `model` | string | No | Gemini model name (default: `gemini-2.5-flash`) |
-
-**Response (200):**
-
-```json
-{
-  "response": "Model output text",
-  "model": "gemini-2.5-flash"
-}
-```
-
-**Errors:**
-
-- `500` — `GEMINI_API_KEY` is not configured
-
----
-
-### `GET /llm/view`
-
-Serves a self-contained HTML page for prototyping Buddhist tradition onboarding. The page walks users through selecting traditions and calls `POST /llm/chat` to validate selections. Intended for internal/demo use, not production client integration.
-
-**Response:** `text/html`
 
 ---
 
@@ -386,7 +347,7 @@ Sends a push notification directly for testing. Does not read from or write to t
 | Endpoint group | Authentication |
 |----------------|----------------|
 | `/health`, `/props` | None |
-| `/audio/*`, `/llm/*` | None |
+| `/audio/*` | None |
 | `/notifications/reminders/*` | None (called by main backend) |
 | `/internal/*` | `X-Dispatch-Token` header |
 
