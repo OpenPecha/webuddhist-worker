@@ -197,6 +197,43 @@ class TestFetchChatNotificationTargets:
         assert http_client.get.await_args.kwargs["params"] == {"skip": 0, "limit": 100}
 
 
+class TestFetchVerseOfDayNotificationTargets:
+    @pytest.mark.asyncio
+    async def test_returns_parsed_targets(self):
+        user_id = uuid4()
+        response = _json_response(
+            {
+                "generated_at": "2026-01-01T10:00:00Z",
+                "users": [
+                    {
+                        "user_id": str(user_id),
+                        "notification": {"title": "WebBuddhist", "body": "May all beings be happy."},
+                        "push_devices": [{"token": "token-1", "platform": "android"}],
+                    }
+                ],
+            }
+        )
+        client_patch, http_client = _patch_async_client(response)
+
+        with client_patch, _patch_config():
+            targets = await backend_client.fetch_verse_of_day_notification_targets()
+
+        assert targets.users[0].user_id == user_id
+        assert targets.users[0].notification.body == "May all beings be happy."
+        assert http_client.get.await_args.args[0] == (
+            "http://backend.test/internal/verse-of-day-notification-targets"
+        )
+        assert http_client.get.await_args.kwargs["headers"] == {"X-Dispatch-Token": "dispatch-token"}
+
+    @pytest.mark.asyncio
+    async def test_raises_on_error_status(self):
+        client_patch, _ = _patch_async_client(_json_response({}, status_code=500))
+
+        with client_patch, _patch_config():
+            with pytest.raises(httpx.HTTPStatusError):
+                await backend_client.fetch_verse_of_day_notification_targets()
+
+
 class TestDeactivatePushDevice:
     @pytest.mark.asyncio
     async def test_posts_push_device_id(self):

@@ -21,6 +21,7 @@ This document describes every HTTP endpoint exposed by the WebBuddhist Worker AP
 | POST | `/internal/dispatch-due-notifications` | `X-Dispatch-Token` | Send due plan reminders |
 | GET | `/internal/routine-notification-targets` | `X-Dispatch-Token` | Preview routine notification targets |
 | POST | `/internal/dispatch-routine-notifications` | `X-Dispatch-Token` | Send routine notifications |
+| POST | `/internal/dispatch-verse-of-day-notifications` | `X-Dispatch-Token` | Send verse-of-the-day notifications |
 | POST | `/internal/send-test-notification` | `X-Dispatch-Token` | Send a test push notification |
 
 ---
@@ -294,6 +295,50 @@ See [notification-format.md](./notification-format.md) for resolution rules and 
 ```
 
 Devices on platforms without push configuration are counted as `skipped`.
+
+---
+
+### `POST /internal/dispatch-verse-of-day-notifications`
+
+Fetches verse-of-the-day notification targets from the backend `GET /internal/verse-of-day-notification-targets` endpoint, then sends FCM push notifications to each device. The backend matches each user's push devices whose IANA timezone currently reads 10:00 local time (users without a stored timezone default to UTC), and resolves the verse text in that user's preferred language (defaulting to English when unset or untranslated). Users with no verse published for their local date, or with no verse text in either their language or the English fallback, are omitted from the target list.
+
+Each push includes:
+
+- Display notification: `title` (`NOTIFICATION_DEFAULT_TITLE`), `body` (the resolved verse text), optional `image`
+- Data payload: `notification_type=VERSE_OF_DAY`, `session_type=VERSE_OF_DAY`, `title`, `body`, `image_url`
+
+**Headers:**
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `X-Dispatch-Token` | Yes | Dispatch secret token |
+
+**Response (200):**
+
+```json
+{
+  "generated_at": "2026-06-30T04:15:00Z",
+  "users": [
+    {
+      "user_id": "uuid",
+      "notification": {
+        "title": "WebBuddhist",
+        "body": "May all beings be happy and free from suffering.",
+        "image_url": "https://..."
+      },
+      "push_devices": [
+        {"token": "fcm-token", "platform": "android"}
+      ]
+    }
+  ],
+  "processed": 1,
+  "sent": 1,
+  "failed": 0,
+  "skipped": 0
+}
+```
+
+This endpoint is intended to be called every minute by an external scheduler (e.g. Cloud Scheduler), the same way `/internal/dispatch-routine-notifications` is — each minute a different set of users crosses their local 10:00 threshold.
 
 ---
 

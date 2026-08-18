@@ -190,6 +190,69 @@ class TestDispatchRoutineNotificationsEndpoint:
         mock_dispatch.assert_called_once()
 
 
+class TestDispatchVerseOfDayNotificationsEndpoint:
+    def test_dispatch_verse_of_day_notifications_requires_token(self, client):
+        response = client.post("/api/v1/internal/dispatch-verse-of-day-notifications")
+        assert response.status_code == 422
+
+    def test_dispatch_verse_of_day_notifications_rejects_invalid_token(self, client, monkeypatch):
+        monkeypatch.setenv("NOTIFICATION_DISPATCH_SECRET_TOKEN", "secret-token")
+        response = client.post(
+            "/api/v1/internal/dispatch-verse-of-day-notifications",
+            headers={"X-Dispatch-Token": "wrong-token"},
+        )
+        assert response.status_code == 401
+
+    @patch(
+        "worker_api.notifications.internal_views.dispatch_verse_of_day_notifications_service",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_verse_of_day_notifications_success(self, mock_dispatch, client, monkeypatch):
+        monkeypatch.setenv("NOTIFICATION_DISPATCH_SECRET_TOKEN", "secret-token")
+        from datetime import datetime, timezone
+        from uuid import uuid4
+
+        from worker_api.notifications.schemas import (
+            DispatchVerseOfDayNotificationsResponse,
+            VerseOfDayNotificationContent,
+            VerseOfDayNotificationUserTarget,
+            VerseOfDayPushDeviceTarget,
+        )
+
+        user_id = uuid4()
+        mock_dispatch.return_value = DispatchVerseOfDayNotificationsResponse(
+            generated_at=datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc),
+            users=[
+                VerseOfDayNotificationUserTarget(
+                    user_id=user_id,
+                    notification=VerseOfDayNotificationContent(
+                        title="WebBuddhist",
+                        body="May all beings be happy.",
+                    ),
+                    push_devices=[
+                        VerseOfDayPushDeviceTarget(token="fcm-token", platform="android"),
+                    ],
+                )
+            ],
+            processed=1,
+            sent=1,
+            failed=0,
+            skipped=0,
+        )
+
+        response = client.post(
+            "/api/v1/internal/dispatch-verse-of-day-notifications",
+            headers={"X-Dispatch-Token": "secret-token"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["sent"] == 1
+        assert payload["processed"] == 1
+        assert payload["users"][0]["notification"]["body"] == "May all beings be happy."
+        mock_dispatch.assert_called_once()
+
+
 class TestSendTestNotificationEndpoint:
     def test_send_test_notification_requires_token(self, client):
         response = client.post(

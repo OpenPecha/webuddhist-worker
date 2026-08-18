@@ -200,3 +200,34 @@ class DeactivatePushDeviceRequest(BaseModel):
 class DeactivatePushDeviceResponse(BaseModel):
     push_device_id: UUID
     deactivated: bool
+
+
+class VerseOfDayPushDeviceTarget(BaseModel):
+    token: str
+    platform: str
+
+
+class VerseOfDayNotificationContent(BaseModel):
+    title: str
+    body: str
+    image_url: str | None = None
+
+
+class VerseOfDayNotificationUserTarget(BaseModel):
+    user_id: UUID
+    notification: VerseOfDayNotificationContent
+    push_devices: list[VerseOfDayPushDeviceTarget]
+
+
+class VerseOfDayNotificationTargetsResponse(BaseModel):
+    generated_at: datetime
+    users: list[VerseOfDayNotificationUserTarget]
+
+
+class DispatchVerseOfDayNotificationsResponse(BaseModel):
+    generated_at: datetime
+    users: list[VerseOfDayNotificationUserTarget]
+    processed: int
+    sent: int
+    failed: int
+    skipped: int
