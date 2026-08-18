@@ -61,11 +61,14 @@ Routine notifications are sent only for **`PLAN`** and **`SERIES`** sessions.
 | `PLAN`         | Plan UUID              |
 | `SERIES`       | Series UUID            |
 | `CHAT`         | Chat room UUID         |
+| `VERSE_OF_DAY` | None (`source_id` field not present) |
 
 Plan reminder dispatches (enrollment API) always use `session_type: "PLAN"`.
 
 Chat message pushes use `session_type: "CHAT"` plus dedicated routing fields
 (`notification_type`, `chat_kind`, `room_id`, `message_id`, `sender_id`, `group_id`).
+
+Verse-of-the-day pushes use `session_type: "VERSE_OF_DAY"` plus `notification_type: "VERSE_OF_DAY"`.
 
 ## Default content
 
@@ -108,6 +111,18 @@ For `PLAN`, the backend calculates the user's current day from plan progress and
 |-----------|-------------|
 | Series has a cover image | Presigned series cover image (`series.image`) |
 | No series cover available | Empty string |
+
+### Verse-of-the-day notifications (per-user timezone + language)
+
+Triggered when a user's push devices' IANA timezone (from `user_metadata.timezone`, defaulting to `UTC` when unset) currently reads **10:00 local time**. The backend computes this dynamically per user on every poll (not a stored UTC time), so it stays correct across DST.
+
+| Field | Resolution |
+|-------|------------|
+| `title` | `NOTIFICATION_DEFAULT_TITLE` (backend config; verse-of-day has no per-verse title) |
+| `body` | The day's verse text (`verse_metadata.verse`) in the user's language (`user_metadata.language`, defaulting to `en` when unset), falling back to the English (`en`) translation when the user's language isn't available |
+| `image_url` | Presigned URL from the verse's `image_urls`, or empty when none |
+
+If no verse is published for the user's local date, or neither the user's language nor the `en` fallback has translated text, that user is omitted from the target list for that poll (no notification is sent).
 
 ### Plan reminders (enrollment API)
 
@@ -255,6 +270,25 @@ When the day notification uses `image_type = CUSTOM`, `image_url` points to the 
 }
 ```
 
+### Verse of the day
+
+```json
+{
+  "notification": {
+    "title": "WebBuddhist",
+    "body": "May all beings be happy and free from suffering.",
+    "image": "https://cdn.example.com/verse-of-day/2026-06-30.jpg"
+  },
+  "data": {
+    "notification_type": "VERSE_OF_DAY",
+    "session_type": "VERSE_OF_DAY",
+    "title": "WebBuddhist",
+    "body": "May all beings be happy and free from suffering.",
+    "image_url": "https://cdn.example.com/verse-of-day/2026-06-30.jpg"
+  }
+}
+```
+
 ### Chat message (direct)
 
 ```json
@@ -369,3 +403,4 @@ When the user taps a notification:
 | `PLAN`         | Plan detail / day view |
 | `SERIES`       | Series player          |
 | `CHAT`         | Chat room / DM thread using `room_id` (`chat_kind` + optional `group_id`) |
+| `VERSE_OF_DAY` | App home / verse-of-day screen (no linked entity) |

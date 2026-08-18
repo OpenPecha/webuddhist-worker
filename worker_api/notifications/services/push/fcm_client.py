@@ -83,6 +83,42 @@ async def send_routine_push_notification(
     )
 
 
+def build_verse_of_day_notification_data(
+    *,
+    title: str,
+    body: str,
+    image_url: str | None = None,
+) -> dict[str, str]:
+    """FCM data payloads require string values."""
+    return {
+        "notification_type": "VERSE_OF_DAY",
+        "session_type": "VERSE_OF_DAY",
+        "title": title,
+        "body": body,
+        "image_url": image_url or "",
+    }
+
+
+async def send_verse_of_day_push_notification(
+    *,
+    device_token: str,
+    title: str,
+    body: str,
+    image_url: str | None = None,
+) -> None:
+    await send_fcm_notification(
+        device_token=device_token,
+        title=title,
+        body=body,
+        image_url=image_url,
+        data=build_verse_of_day_notification_data(
+            title=title,
+            body=body,
+            image_url=image_url,
+        ),
+    )
+
+
 async def send_chat_push_notification(
     *,
     device_token: str,

@@ -5,6 +5,7 @@ from worker_api.notifications.dependencies import verify_dispatch_token
 from worker_api.notifications.schemas import (
     DispatchDueNotificationsResponse,
     DispatchRoutineNotificationsResponse,
+    DispatchVerseOfDayNotificationsResponse,
     RoutineNotificationTargetsResponse,
     SendTestNotificationRequest,
     SendTestNotificationResponse,
@@ -18,6 +19,9 @@ from worker_api.notifications.services.routine_notification_service import (
 )
 from worker_api.notifications.services.send_test_notification_service import (
     send_test_notification_service,
+)
+from worker_api.notifications.services.verse_of_day_dispatch_service import (
+    dispatch_verse_of_day_notifications_service,
 )
 
 internal_router = APIRouter(prefix="/internal", tags=["Internal"])
@@ -51,6 +55,16 @@ async def dispatch_routine_notifications(
     _: None = Depends(verify_dispatch_token),
 ) -> DispatchRoutineNotificationsResponse:
     return await dispatch_routine_notifications_service()
+
+
+@internal_router.post(
+    "/dispatch-verse-of-day-notifications",
+    status_code=status.HTTP_200_OK,
+)
+async def dispatch_verse_of_day_notifications(
+    _: None = Depends(verify_dispatch_token),
+) -> DispatchVerseOfDayNotificationsResponse:
+    return await dispatch_verse_of_day_notifications_service()
 
 
 @internal_router.post(

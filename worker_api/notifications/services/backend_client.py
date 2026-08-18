@@ -8,6 +8,7 @@ from worker_api.notifications.schemas import (
     DeactivatePushDeviceResponse,
     NotificationContent,
     RoutineNotificationTargetsResponse,
+    VerseOfDayNotificationTargetsResponse,
 )
 
 
@@ -64,6 +65,16 @@ async def fetch_chat_notification_targets(
         )
         response.raise_for_status()
         return ChatNotificationTargetsResponse.model_validate(response.json())
+
+
+async def fetch_verse_of_day_notification_targets() -> VerseOfDayNotificationTargetsResponse:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(
+            f"{_backend_url()}/internal/verse-of-day-notification-targets",
+            headers=_backend_headers(),
+        )
+        response.raise_for_status()
+        return VerseOfDayNotificationTargetsResponse.model_validate(response.json())
 
 
 async def deactivate_push_device(*, push_device_id: UUID) -> DeactivatePushDeviceResponse:
