@@ -61,6 +61,7 @@ Routine notifications are sent only for **`PLAN`** and **`SERIES`** sessions.
 | `PLAN`         | Plan UUID              |
 | `SERIES`       | Series UUID            |
 | `CHAT`         | Chat room UUID         |
+| `GROUP`        | Group UUID             |
 | `VERSE_OF_DAY` | None (`source_id` field not present) |
 
 Plan reminder dispatches (enrollment API) always use `session_type: "PLAN"`.
@@ -69,6 +70,11 @@ Chat message pushes use `session_type: "CHAT"` plus dedicated routing fields
 (`notification_type`, `chat_kind`, `room_id`, `message_id`, `sender_id`, `group_id`).
 
 Verse-of-the-day pushes use `session_type: "VERSE_OF_DAY"` plus `notification_type: "VERSE_OF_DAY"`.
+
+Group join-request pushes use `session_type: "GROUP"` with `source_id` set to the
+group UUID, plus `notification_type: "JOIN_REQUEST_CREATED"` or
+`"JOIN_REQUEST_DECIDED"` and the routing fields `join_request_id`, `group_id`,
+and `status`.
 
 ## Default content
 
@@ -337,6 +343,54 @@ When the day notification uses `image_type = CUSTOM`, `image_url` points to the 
 }
 ```
 
+### Group join request (moderators notified)
+
+```json
+{
+  "notification": {
+    "title": "Morning Sangha",
+    "body": "Tenzin Tib asked to join Morning Sangha"
+  },
+  "data": {
+    "notification_type": "JOIN_REQUEST_CREATED",
+    "session_type": "GROUP",
+    "join_request_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "group_id": "f4a5b6c7-d8e9-0123-def0-234567890123",
+    "status": "PENDING",
+    "source_id": "f4a5b6c7-d8e9-0123-def0-234567890123",
+    "title": "Morning Sangha",
+    "body": "Tenzin Tib asked to join Morning Sangha",
+    "image_url": ""
+  }
+}
+```
+
+### Group join request decided (requester notified)
+
+```json
+{
+  "notification": {
+    "title": "Morning Sangha",
+    "body": "You've joined Morning Sangha"
+  },
+  "data": {
+    "notification_type": "JOIN_REQUEST_DECIDED",
+    "session_type": "GROUP",
+    "join_request_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "group_id": "f4a5b6c7-d8e9-0123-def0-234567890123",
+    "status": "APPROVED",
+    "source_id": "f4a5b6c7-d8e9-0123-def0-234567890123",
+    "title": "Morning Sangha",
+    "body": "You've joined Morning Sangha",
+    "image_url": ""
+  }
+}
+```
+
+`status` is `APPROVED` or `REJECTED` for `JOIN_REQUEST_DECIDED`, and `PENDING`
+for `JOIN_REQUEST_CREATED`. `title` and `body` are composed by the backend; the
+worker forwards them unchanged.
+
 ## Chat notification delivery
 
 Chat pushes are event-driven:
@@ -363,6 +417,37 @@ Configure:
 | `CHAT_NOTIFICATION_IDEMPOTENCY_TTL_SECONDS` | Redis TTL for `message_id + push_device_id` dedupe |
 
 Attach a dead-letter queue (DLQ) to the chat notification SQS queue for poison messages.
+
+## Join request notification delivery
+
+Group join-request pushes are event-driven and use their own SQS queue, separate
+from the chat queue:
+
+1. A user asks to join a private group; a Studio moderator approves or rejects it.
+2. Backend enqueues `{ "event_type": "JOIN_REQUEST_CREATED" | "JOIN_REQUEST_DECIDED", "version": 1, "join_request_id": "..." }` to `JOIN_REQUEST_NOTIFICATION_SQS_QUEUE_URL`.
+3. Worker consumes the event, paginates `GET /internal/join-request-notification-targets/{join_request_id}`, and sends FCM.
+4. Permanently invalid tokens are deactivated via `POST /internal/push-devices/deactivate`.
+
+**Recipients:**
+
+| Event | Recipients |
+|-------|------------|
+| `JOIN_REQUEST_CREATED` | The group's moderators |
+| `JOIN_REQUEST_DECIDED` | The requesting user only |
+
+Recipients with no registered push device are counted in `total` but omitted from
+`recipients`; the worker treats that as a no-op and deletes the event.
+
+Configure:
+
+| Variable | Purpose |
+|----------|---------|
+| `JOIN_REQUEST_NOTIFICATION_SQS_QUEUE_URL` | Dedicated SQS queue (backend producer, worker consumer) |
+| `JOIN_REQUEST_NOTIFICATION_SQS_POLL_ENABLED` | Worker poll kill switch (`true`/`false`) |
+| `JOIN_REQUEST_NOTIFICATION_SEND_CONCURRENCY` | Max concurrent FCM sends per event |
+| `JOIN_REQUEST_NOTIFICATION_IDEMPOTENCY_TTL_SECONDS` | Redis TTL for `join_request_id + event_type + push_device_id` dedupe |
+
+Attach a dead-letter queue (DLQ) to the join request notification SQS queue for poison messages.
 
 ## Preview API vs push payload
 
@@ -403,4 +488,5 @@ When the user taps a notification:
 | `PLAN`         | Plan detail / day view |
 | `SERIES`       | Series player          |
 | `CHAT`         | Chat room / DM thread using `room_id` (`chat_kind` + optional `group_id`) |
+| `GROUP`        | Group screen using `group_id`; for `JOIN_REQUEST_CREATED` open the group's pending-requests view |
 | `VERSE_OF_DAY` | App home / verse-of-day screen (no linked entity) |

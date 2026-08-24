@@ -193,6 +193,33 @@ class ChatNotificationTargetsResponse(BaseModel):
     has_more: bool
 
 
+class JoinRequestPushDeviceTarget(BaseModel):
+    id: UUID
+    token: str
+    platform: str
+
+
+class JoinRequestNotificationRecipient(BaseModel):
+    user_id: UUID
+    push_devices: list[JoinRequestPushDeviceTarget]
+
+
+class JoinRequestNotificationTargetsResponse(BaseModel):
+    join_request_id: UUID
+    group_id: UUID
+    event_type: str
+    status: str
+    group_name: str
+    requester_name: str
+    title: str
+    body: str
+    recipients: list[JoinRequestNotificationRecipient]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
 class DeactivatePushDeviceRequest(BaseModel):
     push_device_id: UUID
 

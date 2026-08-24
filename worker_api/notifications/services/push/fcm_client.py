@@ -146,6 +146,54 @@ async def send_chat_push_notification(
     )
 
 
+def build_join_request_notification_data(
+    *,
+    event_type: str,
+    join_request_id: UUID,
+    group_id: UUID,
+    status: str,
+    title: str,
+    body: str,
+) -> dict[str, str]:
+    """FCM data payloads require string values."""
+    return {
+        "notification_type": event_type,
+        "session_type": "GROUP",
+        "join_request_id": str(join_request_id),
+        "group_id": str(group_id),
+        "status": status,
+        "source_id": str(group_id),
+        "title": title,
+        "body": body,
+        "image_url": "",
+    }
+
+
+async def send_join_request_push_notification(
+    *,
+    device_token: str,
+    event_type: str,
+    join_request_id: UUID,
+    group_id: UUID,
+    status: str,
+    title: str,
+    body: str,
+) -> None:
+    await send_fcm_notification(
+        device_token=device_token,
+        title=title,
+        body=body,
+        data=build_join_request_notification_data(
+            event_type=event_type,
+            join_request_id=join_request_id,
+            group_id=group_id,
+            status=status,
+            title=title,
+            body=body,
+        ),
+    )
+
+
 def _is_permanent_token_error(exc: Exception) -> bool:
     if isinstance(exc, UnregisteredError):
         return True
