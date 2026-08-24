@@ -6,6 +6,7 @@ from worker_api.config import get
 from worker_api.notifications.schemas import (
     ChatNotificationTargetsResponse,
     DeactivatePushDeviceResponse,
+    JoinRequestNotificationTargetsResponse,
     NotificationContent,
     RoutineNotificationTargetsResponse,
     VerseOfDayNotificationTargetsResponse,
@@ -65,6 +66,22 @@ async def fetch_chat_notification_targets(
         )
         response.raise_for_status()
         return ChatNotificationTargetsResponse.model_validate(response.json())
+
+
+async def fetch_join_request_notification_targets(
+    *,
+    join_request_id: UUID,
+    skip: int = 0,
+    limit: int = 100,
+) -> JoinRequestNotificationTargetsResponse:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(
+            f"{_backend_url()}/internal/join-request-notification-targets/{join_request_id}",
+            params={"skip": skip, "limit": limit},
+            headers=_backend_headers(),
+        )
+        response.raise_for_status()
+        return JoinRequestNotificationTargetsResponse.model_validate(response.json())
 
 
 async def fetch_verse_of_day_notification_targets() -> VerseOfDayNotificationTargetsResponse:

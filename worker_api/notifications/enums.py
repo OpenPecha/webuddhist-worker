@@ -20,3 +20,4 @@ class SessionType(StrEnum):
     ACCUMULATION = "ACCUMULATION"
     TIMER = "TIMER"
     CHAT = "CHAT"
+    GROUP = "GROUP"
