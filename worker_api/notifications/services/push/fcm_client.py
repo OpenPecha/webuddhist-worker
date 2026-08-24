@@ -59,6 +59,28 @@ def build_chat_notification_data(
     }
 
 
+def build_group_post_notification_data(
+    *,
+    post_id: UUID,
+    group_id: UUID,
+    author_id: UUID,
+    title: str,
+    body: str,
+) -> dict[str, str]:
+    """FCM data payloads require string values."""
+    return {
+        "notification_type": "GROUP_POST",
+        "session_type": "GROUP_POST",
+        "post_id": str(post_id),
+        "group_id": str(group_id),
+        "author_id": str(author_id),
+        "source_id": str(post_id),
+        "title": title,
+        "body": body,
+        "image_url": "",
+    }
+
+
 async def send_routine_push_notification(
     *,
     device_token: str,
@@ -140,6 +162,29 @@ async def send_chat_push_notification(
             sender_id=sender_id,
             chat_kind=chat_kind,
             group_id=group_id,
+            title=title,
+            body=body,
+        ),
+    )
+
+
+async def send_group_post_push_notification(
+    *,
+    device_token: str,
+    post_id: UUID,
+    group_id: UUID,
+    author_id: UUID,
+    title: str,
+    body: str,
+) -> None:
+    await send_fcm_notification(
+        device_token=device_token,
+        title=title,
+        body=body,
+        data=build_group_post_notification_data(
+            post_id=post_id,
+            group_id=group_id,
+            author_id=author_id,
             title=title,
             body=body,
         ),
