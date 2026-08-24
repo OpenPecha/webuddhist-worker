@@ -197,6 +197,140 @@ class TestFetchChatNotificationTargets:
         assert http_client.get.await_args.kwargs["params"] == {"skip": 0, "limit": 100}
 
 
+class TestFetchGroupPostNotificationTargets:
+    @pytest.mark.asyncio
+    async def test_returns_parsed_targets(self):
+        post_id = uuid4()
+        device_id = uuid4()
+        response = _json_response(
+            {
+                "post_id": str(post_id),
+                "group_id": str(uuid4()),
+                "author_id": str(uuid4()),
+                "title": "Sangha",
+                "body": "Alice shared a new post",
+                "recipients": [
+                    {
+                        "user_id": str(uuid4()),
+                        "push_devices": [
+                            {"id": str(device_id), "token": "token-1", "platform": "ios"}
+                        ],
+                    }
+                ],
+                "skip": 100,
+                "limit": 50,
+                "total": 120,
+                "has_more": False,
+            }
+        )
+        client_patch, http_client = _patch_async_client(response)
+
+        with client_patch, _patch_config():
+            targets = await backend_client.fetch_group_post_notification_targets(
+                post_id=post_id,
+                skip=100,
+                limit=50,
+            )
+
+        assert targets.total == 120
+        assert targets.recipients[0].push_devices[0].id == device_id
+        assert http_client.get.await_args.args[0] == (
+            f"http://backend.test/internal/group-post-notification-targets/{post_id}"
+        )
+        assert http_client.get.await_args.kwargs["params"] == {"skip": 100, "limit": 50}
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_first_page(self):
+        post_id = uuid4()
+        response = _json_response(
+            {
+                "post_id": str(post_id),
+                "group_id": str(uuid4()),
+                "author_id": str(uuid4()),
+                "title": "Sangha",
+                "body": "Alice shared a new post",
+                "recipients": [],
+                "skip": 0,
+                "limit": 100,
+                "total": 0,
+                "has_more": False,
+            }
+        )
+        client_patch, http_client = _patch_async_client(response)
+
+        with client_patch, _patch_config():
+            await backend_client.fetch_group_post_notification_targets(post_id=post_id)
+
+        assert http_client.get.await_args.kwargs["params"] == {"skip": 0, "limit": 100}
+
+
+class TestFetchEventNotificationTargets:
+    @pytest.mark.asyncio
+    async def test_returns_parsed_targets(self):
+        event_id = uuid4()
+        device_id = uuid4()
+        response = _json_response(
+            {
+                "event_id": str(event_id),
+                "group_id": str(uuid4()),
+                "author_id": str(uuid4()),
+                "title": "Sangha",
+                "body": "Full Moon Meditation",
+                "recipients": [
+                    {
+                        "user_id": str(uuid4()),
+                        "push_devices": [
+                            {"id": str(device_id), "token": "token-1", "platform": "ios"}
+                        ],
+                    }
+                ],
+                "skip": 100,
+                "limit": 50,
+                "total": 120,
+                "has_more": False,
+            }
+        )
+        client_patch, http_client = _patch_async_client(response)
+
+        with client_patch, _patch_config():
+            targets = await backend_client.fetch_event_notification_targets(
+                event_id=event_id,
+                skip=100,
+                limit=50,
+            )
+
+        assert targets.total == 120
+        assert targets.recipients[0].push_devices[0].id == device_id
+        assert http_client.get.await_args.args[0] == (
+            f"http://backend.test/internal/event-notification-targets/{event_id}"
+        )
+        assert http_client.get.await_args.kwargs["params"] == {"skip": 100, "limit": 50}
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_first_page(self):
+        event_id = uuid4()
+        response = _json_response(
+            {
+                "event_id": str(event_id),
+                "group_id": str(uuid4()),
+                "author_id": str(uuid4()),
+                "title": "Sangha",
+                "body": "Full Moon Meditation",
+                "recipients": [],
+                "skip": 0,
+                "limit": 100,
+                "total": 0,
+                "has_more": False,
+            }
+        )
+        client_patch, http_client = _patch_async_client(response)
+
+        with client_patch, _patch_config():
+            await backend_client.fetch_event_notification_targets(event_id=event_id)
+
+        assert http_client.get.await_args.kwargs["params"] == {"skip": 0, "limit": 100}
+
+
 class TestFetchVerseOfDayNotificationTargets:
     @pytest.mark.asyncio
     async def test_returns_parsed_targets(self):

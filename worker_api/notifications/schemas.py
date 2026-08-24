@@ -193,6 +193,54 @@ class ChatNotificationTargetsResponse(BaseModel):
     has_more: bool
 
 
+class GroupPostPushDeviceTarget(BaseModel):
+    id: UUID
+    token: str
+    platform: str
+
+
+class GroupPostNotificationRecipient(BaseModel):
+    user_id: UUID
+    push_devices: list[GroupPostPushDeviceTarget]
+
+
+class GroupPostNotificationTargetsResponse(BaseModel):
+    post_id: UUID
+    group_id: UUID
+    author_id: UUID
+    title: str
+    body: str
+    recipients: list[GroupPostNotificationRecipient]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
+class EventPushDeviceTarget(BaseModel):
+    id: UUID
+    token: str
+    platform: str
+
+
+class EventNotificationRecipient(BaseModel):
+    user_id: UUID
+    push_devices: list[EventPushDeviceTarget]
+
+
+class EventNotificationTargetsResponse(BaseModel):
+    event_id: UUID
+    group_id: UUID
+    author_id: UUID
+    title: str
+    body: str
+    recipients: list[EventNotificationRecipient]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
 class JoinRequestPushDeviceTarget(BaseModel):
     id: UUID
     token: str

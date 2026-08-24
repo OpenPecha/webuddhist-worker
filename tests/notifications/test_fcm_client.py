@@ -5,9 +5,13 @@ import pytest
 
 from worker_api.notifications.services.push.fcm_client import (
     build_chat_notification_data,
+    build_event_notification_data,
+    build_group_post_notification_data,
     build_routine_notification_data,
     send_chat_push_notification,
+    send_event_push_notification,
     send_fcm_notification,
+    send_group_post_push_notification,
     send_routine_push_notification,
 )
 
@@ -87,6 +91,56 @@ class TestBuildChatNotificationData:
         )
         assert data["chat_kind"] == "PRIVATE"
         assert data["group_id"] == ""
+
+
+class TestBuildGroupPostNotificationData:
+    def test_includes_group_post_routing_fields(self):
+        post_id = uuid4()
+        group_id = uuid4()
+        author_id = uuid4()
+        data = build_group_post_notification_data(
+            post_id=post_id,
+            group_id=group_id,
+            author_id=author_id,
+            title="Sangha",
+            body="Alice shared a new post",
+        )
+        assert data == {
+            "notification_type": "GROUP_POST",
+            "session_type": "GROUP_POST",
+            "post_id": str(post_id),
+            "group_id": str(group_id),
+            "author_id": str(author_id),
+            "source_id": str(post_id),
+            "title": "Sangha",
+            "body": "Alice shared a new post",
+            "image_url": "",
+        }
+
+
+class TestBuildEventNotificationData:
+    def test_includes_event_routing_fields(self):
+        event_id = uuid4()
+        group_id = uuid4()
+        author_id = uuid4()
+        data = build_event_notification_data(
+            event_id=event_id,
+            group_id=group_id,
+            author_id=author_id,
+            title="Sangha",
+            body="Full Moon Meditation",
+        )
+        assert data == {
+            "notification_type": "EVENT",
+            "session_type": "EVENT",
+            "event_id": str(event_id),
+            "group_id": str(group_id),
+            "author_id": str(author_id),
+            "source_id": str(event_id),
+            "title": "Sangha",
+            "body": "Full Moon Meditation",
+            "image_url": "",
+        }
 
 
 class TestSendFcmNotification:
@@ -184,3 +238,51 @@ class TestSendChatPushNotification:
         assert kwargs["data"]["notification_type"] == "CHAT_MESSAGE"
         assert kwargs["data"]["session_type"] == "CHAT"
         assert kwargs["data"]["room_id"] == str(room_id)
+
+
+class TestSendGroupPostPushNotification:
+    @pytest.mark.asyncio
+    @patch("worker_api.notifications.services.push.fcm_client.send_fcm_notification")
+    async def test_delegates_with_group_post_payload(self, mock_send):
+        post_id = uuid4()
+        group_id = uuid4()
+        author_id = uuid4()
+        await send_group_post_push_notification(
+            device_token="device-token",
+            post_id=post_id,
+            group_id=group_id,
+            author_id=author_id,
+            title="Sangha",
+            body="Alice shared a new post",
+        )
+        mock_send.assert_awaited_once()
+        kwargs = mock_send.await_args.kwargs
+        assert kwargs["title"] == "Sangha"
+        assert kwargs["body"] == "Alice shared a new post"
+        assert kwargs["data"]["notification_type"] == "GROUP_POST"
+        assert kwargs["data"]["session_type"] == "GROUP_POST"
+        assert kwargs["data"]["post_id"] == str(post_id)
+
+
+class TestSendEventPushNotification:
+    @pytest.mark.asyncio
+    @patch("worker_api.notifications.services.push.fcm_client.send_fcm_notification")
+    async def test_delegates_with_event_payload(self, mock_send):
+        event_id = uuid4()
+        group_id = uuid4()
+        author_id = uuid4()
+        await send_event_push_notification(
+            device_token="device-token",
+            event_id=event_id,
+            group_id=group_id,
+            author_id=author_id,
+            title="Sangha",
+            body="Full Moon Meditation",
+        )
+        mock_send.assert_awaited_once()
+        kwargs = mock_send.await_args.kwargs
+        assert kwargs["title"] == "Sangha"
+        assert kwargs["body"] == "Full Moon Meditation"
+        assert kwargs["data"]["notification_type"] == "EVENT"
+        assert kwargs["data"]["session_type"] == "EVENT"
+        assert kwargs["data"]["event_id"] == str(event_id)
