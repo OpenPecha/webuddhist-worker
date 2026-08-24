@@ -217,6 +217,30 @@ class GroupPostNotificationTargetsResponse(BaseModel):
     has_more: bool
 
 
+class EventPushDeviceTarget(BaseModel):
+    id: UUID
+    token: str
+    platform: str
+
+
+class EventNotificationRecipient(BaseModel):
+    user_id: UUID
+    push_devices: list[EventPushDeviceTarget]
+
+
+class EventNotificationTargetsResponse(BaseModel):
+    event_id: UUID
+    group_id: UUID
+    author_id: UUID
+    title: str
+    body: str
+    recipients: list[EventNotificationRecipient]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
 class JoinRequestPushDeviceTarget(BaseModel):
     id: UUID
     token: str

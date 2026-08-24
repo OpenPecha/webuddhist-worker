@@ -11,6 +11,9 @@ from worker_api.audio.services.audio_job_consumer import run_audio_sqs_consumer
 from worker_api.notifications.services.chat_notification_consumer import (
     run_chat_notification_sqs_consumer,
 )
+from worker_api.notifications.services.event_notification_consumer import (
+    run_event_notification_sqs_consumer,
+)
 from worker_api.notifications.services.group_post_notification_consumer import (
     run_group_post_notification_sqs_consumer,
 )
@@ -46,6 +49,7 @@ async def lifespan(api: FastAPI):
         asyncio.create_task(run_chat_notification_sqs_consumer(stop_event)),
         asyncio.create_task(run_join_request_notification_sqs_consumer(stop_event)),
         asyncio.create_task(run_group_post_notification_sqs_consumer(stop_event)),
+        asyncio.create_task(run_event_notification_sqs_consumer(stop_event)),
     ]
 
     yield
