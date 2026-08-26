@@ -21,3 +21,5 @@ class SessionType(StrEnum):
     TIMER = "TIMER"
     CHAT = "CHAT"
     GROUP = "GROUP"
+    EVENT = "EVENT"
+    EVENT_REMINDER = "EVENT_REMINDER"

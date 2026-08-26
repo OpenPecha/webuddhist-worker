@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 _sqs_client = None
 
 EVENT_CREATED_EVENT = "EVENT_CREATED"
+EVENT_REMINDER_EVENT = "EVENT_REMINDER"
 EVENT_NOTIFICATION_EVENT_VERSION = 1
+EVENT_REMINDER_TYPES = {"T_MINUS_10", "T_ZERO"}
 
 
 def _get_sqs_client():
@@ -86,7 +88,7 @@ def parse_event_notification_message_body(raw_body: str) -> Optional[Dict[str, A
     event_type = body.get("event_type")
     version = body.get("version")
     event_id = body.get("event_id")
-    if event_type != EVENT_CREATED_EVENT:
+    if event_type not in (EVENT_CREATED_EVENT, EVENT_REMINDER_EVENT):
         logger.error("Unsupported event notification event_type: %s", event_type)
         return None
     if version != EVENT_NOTIFICATION_EVENT_VERSION:
@@ -95,4 +97,9 @@ def parse_event_notification_message_body(raw_body: str) -> Optional[Dict[str, A
     if not event_id:
         logger.error("Event notification SQS message missing event_id: %s", body)
         return None
+    if event_type == EVENT_REMINDER_EVENT:
+        reminder_type = body.get("reminder_type")
+        if reminder_type not in EVENT_REMINDER_TYPES:
+            logger.error("Unsupported event reminder reminder_type: %s", reminder_type)
+            return None
     return body

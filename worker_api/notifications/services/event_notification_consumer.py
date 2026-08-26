@@ -9,6 +9,8 @@ from fastapi import HTTPException
 
 from worker_api.config import get, get_bool, get_int
 from worker_api.notifications.event_sqs_client import (
+    EVENT_CREATED_EVENT,
+    EVENT_REMINDER_EVENT,
     delete_event_notification_message,
     is_event_notification_sqs_poll_enabled,
     parse_event_notification_message_body,
@@ -17,15 +19,18 @@ from worker_api.notifications.event_sqs_client import (
 from worker_api.notifications.schemas import (
     EventNotificationTargetsResponse,
     EventPushDeviceTarget,
+    EventReminderTargetsResponse,
 )
 from worker_api.notifications.services.backend_client import (
     deactivate_push_device,
     fetch_event_notification_targets,
+    fetch_event_reminder_targets,
 )
 from worker_api.notifications.services.push.config_loader import is_push_configured
 from worker_api.notifications.services.push.fcm_client import (
     PermanentPushTokenError,
     send_event_push_notification,
+    send_event_reminder_push_notification,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,20 +51,36 @@ def _get_redis_client() -> redis.Redis:
     return _redis_client
 
 
-def _idempotency_key(*, event_id: UUID, push_device_id: UUID) -> str:
+def _idempotency_key(
+    *, event_id: UUID, push_device_id: UUID, reminder_type: Optional[str] = None
+) -> str:
     prefix = get("EVENT_NOTIFICATION_IDEMPOTENCY_KEY_PREFIX")
+    if reminder_type:
+        return f"{prefix}{event_id}:{reminder_type}:{push_device_id}"
     return f"{prefix}{event_id}:{push_device_id}"
 
 
-def _already_sent(*, event_id: UUID, push_device_id: UUID) -> bool:
+def _already_sent(
+    *, event_id: UUID, push_device_id: UUID, reminder_type: Optional[str] = None
+) -> bool:
     client = _get_redis_client()
-    return bool(client.exists(_idempotency_key(event_id=event_id, push_device_id=push_device_id)))
+    return bool(
+        client.exists(
+            _idempotency_key(
+                event_id=event_id, push_device_id=push_device_id, reminder_type=reminder_type
+            )
+        )
+    )
 
 
-def _mark_sent(*, event_id: UUID, push_device_id: UUID) -> None:
+def _mark_sent(
+    *, event_id: UUID, push_device_id: UUID, reminder_type: Optional[str] = None
+) -> None:
     client = _get_redis_client()
     client.setex(
-        _idempotency_key(event_id=event_id, push_device_id=push_device_id),
+        _idempotency_key(
+            event_id=event_id, push_device_id=push_device_id, reminder_type=reminder_type
+        ),
         get_int("EVENT_NOTIFICATION_IDEMPOTENCY_TTL_SECONDS"),
         "1",
     )
@@ -81,6 +102,40 @@ async def _fetch_all_targets(event_id: UUID) -> EventNotificationTargetsResponse
         try:
             page = await fetch_event_notification_targets(
                 event_id=event_id,
+                skip=skip,
+                limit=page_size,
+            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Event not found") from exc
+            raise TransientEventNotificationError(str(exc)) from exc
+        except httpx.HTTPError as exc:
+            raise TransientEventNotificationError(str(exc)) from exc
+
+        if first_page is None:
+            first_page = page
+        all_recipients.extend(page.recipients)
+        if not page.has_more:
+            break
+        skip += page.limit
+
+    assert first_page is not None
+    return first_page.model_copy(update={"recipients": all_recipients, "has_more": False})
+
+
+async def _fetch_all_reminder_targets(
+    event_id: UUID, reminder_type: str
+) -> EventReminderTargetsResponse:
+    page_size = max(get_int("EVENT_NOTIFICATION_TARGET_PAGE_SIZE"), 1)
+    skip = 0
+    first_page: EventReminderTargetsResponse | None = None
+    all_recipients = []
+
+    while True:
+        try:
+            page = await fetch_event_reminder_targets(
+                event_id=event_id,
+                reminder_type=reminder_type,
                 skip=skip,
                 limit=page_size,
             )
@@ -148,27 +203,64 @@ async def _send_to_device(
             return "transient_failed"
 
 
-async def process_event_notification_message(message: Dict[str, Any]) -> None:
-    receipt_handle = message.get("ReceiptHandle")
-    body = parse_event_notification_message_body(message.get("Body", ""))
-    if not body:
-        if receipt_handle:
-            delete_event_notification_message(receipt_handle)
-        return
+async def _send_reminder_to_device(
+    *,
+    targets: EventReminderTargetsResponse,
+    device: EventPushDeviceTarget,
+    semaphore: asyncio.Semaphore,
+) -> str:
+    """Return sent | skipped | permanent_failed | transient_failed."""
+    async with semaphore:
+        if not is_push_configured(device.platform):
+            return "skipped"
 
-    event_id = _parse_uuid(body.get("event_id"))
-    if not event_id:
-        logger.error("Invalid event_id in event notification SQS message: %s", body)
-        if receipt_handle:
-            delete_event_notification_message(receipt_handle)
-        return
+        if _already_sent(
+            event_id=targets.event_id,
+            push_device_id=device.id,
+            reminder_type=targets.reminder_type,
+        ):
+            return "skipped"
 
-    if not get_bool("NOTIFICATION_DISPATCH_ENABLED"):
-        logger.info("Event notification dispatch disabled; deleting event for %s", event_id)
-        if receipt_handle:
-            delete_event_notification_message(receipt_handle)
-        return
+        try:
+            await send_event_reminder_push_notification(
+                device_token=device.token,
+                event_id=targets.event_id,
+                reminder_type=targets.reminder_type,
+                title=targets.title,
+                body=targets.body,
+            )
+            _mark_sent(
+                event_id=targets.event_id,
+                push_device_id=device.id,
+                reminder_type=targets.reminder_type,
+            )
+            return "sent"
+        except PermanentPushTokenError:
+            logger.warning(
+                "Deactivating permanently invalid push device %s for event reminder %s",
+                device.id,
+                targets.event_id,
+            )
+            try:
+                await deactivate_push_device(push_device_id=device.id)
+            except Exception:
+                logger.exception("Failed to deactivate push device %s", device.id)
+            _mark_sent(
+                event_id=targets.event_id,
+                push_device_id=device.id,
+                reminder_type=targets.reminder_type,
+            )
+            return "permanent_failed"
+        except Exception:
+            logger.exception(
+                "Transient FCM failure for device %s on event reminder %s",
+                device.id,
+                targets.event_id,
+            )
+            return "transient_failed"
 
+
+async def _process_event_created(event_id: UUID, receipt_handle: Optional[str]) -> None:
     try:
         targets = await _fetch_all_targets(event_id)
     except HTTPException as exc:
@@ -219,6 +311,99 @@ async def process_event_notification_message(message: Dict[str, Any]) -> None:
 
     if receipt_handle:
         delete_event_notification_message(receipt_handle)
+
+
+async def _process_event_reminder(
+    event_id: UUID, reminder_type: str, receipt_handle: Optional[str]
+) -> None:
+    try:
+        targets = await _fetch_all_reminder_targets(event_id, reminder_type)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            logger.error(
+                "Event not found for reminder %s on event %s", reminder_type, event_id
+            )
+            if receipt_handle:
+                delete_event_notification_message(receipt_handle)
+            return
+        raise TransientEventNotificationError(str(exc.detail)) from exc
+
+    devices = [
+        device
+        for recipient in targets.recipients
+        for device in recipient.push_devices
+    ]
+    if not devices:
+        logger.info(
+            "No push devices for event reminder %s on event %s; deleting event",
+            reminder_type,
+            event_id,
+        )
+        if receipt_handle:
+            delete_event_notification_message(receipt_handle)
+        return
+
+    concurrency = max(get_int("EVENT_NOTIFICATION_SEND_CONCURRENCY"), 1)
+    semaphore = asyncio.Semaphore(concurrency)
+    results = await asyncio.gather(
+        *[
+            _send_reminder_to_device(targets=targets, device=device, semaphore=semaphore)
+            for device in devices
+        ]
+    )
+
+    sent = results.count("sent")
+    skipped = results.count("skipped")
+    permanent_failed = results.count("permanent_failed")
+    transient_failed = results.count("transient_failed")
+    logger.info(
+        "Event reminder %s for event %s processed: sent=%s permanent_failed=%s transient_failed=%s skipped=%s",
+        reminder_type,
+        event_id,
+        sent,
+        permanent_failed,
+        transient_failed,
+        skipped,
+    )
+
+    if transient_failed > 0:
+        raise TransientEventNotificationError(
+            f"Transient failures remain for event {event_id} reminder {reminder_type}"
+        )
+
+    if receipt_handle:
+        delete_event_notification_message(receipt_handle)
+
+
+async def process_event_notification_message(message: Dict[str, Any]) -> None:
+    receipt_handle = message.get("ReceiptHandle")
+    body = parse_event_notification_message_body(message.get("Body", ""))
+    if not body:
+        if receipt_handle:
+            delete_event_notification_message(receipt_handle)
+        return
+
+    event_id = _parse_uuid(body.get("event_id"))
+    if not event_id:
+        logger.error("Invalid event_id in event notification SQS message: %s", body)
+        if receipt_handle:
+            delete_event_notification_message(receipt_handle)
+        return
+
+    if not get_bool("NOTIFICATION_DISPATCH_ENABLED"):
+        logger.info("Event notification dispatch disabled; deleting event for %s", event_id)
+        if receipt_handle:
+            delete_event_notification_message(receipt_handle)
+        return
+
+    event_type = body.get("event_type")
+    if event_type == EVENT_REMINDER_EVENT:
+        reminder_type = body.get("reminder_type")
+        await _process_event_reminder(event_id, reminder_type, receipt_handle)
+        return
+
+    assert event_type == EVENT_CREATED_EVENT
+    await _process_event_created(event_id, receipt_handle)
 
 
 async def run_event_notification_sqs_consumer(stop_event: asyncio.Event) -> None:

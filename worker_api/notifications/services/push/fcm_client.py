@@ -236,6 +236,47 @@ async def send_event_push_notification(
     )
 
 
+def build_event_reminder_notification_data(
+    *,
+    event_id: UUID,
+    reminder_type: str,
+    title: str,
+    body: str,
+) -> dict[str, str]:
+    """FCM data payloads require string values."""
+    return {
+        "notification_type": "EVENT_REMINDER",
+        "session_type": "EVENT_REMINDER",
+        "reminder_type": reminder_type,
+        "event_id": str(event_id),
+        "source_id": str(event_id),
+        "title": title,
+        "body": body,
+        "image_url": "",
+    }
+
+
+async def send_event_reminder_push_notification(
+    *,
+    device_token: str,
+    event_id: UUID,
+    reminder_type: str,
+    title: str,
+    body: str,
+) -> None:
+    await send_fcm_notification(
+        device_token=device_token,
+        title=title,
+        body=body,
+        data=build_event_reminder_notification_data(
+            event_id=event_id,
+            reminder_type=reminder_type,
+            title=title,
+            body=body,
+        ),
+    )
+
+
 def build_join_request_notification_data(
     *,
     event_type: str,

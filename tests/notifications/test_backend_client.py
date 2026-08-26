@@ -331,6 +331,83 @@ class TestFetchEventNotificationTargets:
         assert http_client.get.await_args.kwargs["params"] == {"skip": 0, "limit": 100}
 
 
+class TestFetchEventReminderTargets:
+    @pytest.mark.asyncio
+    async def test_returns_parsed_targets(self):
+        event_id = uuid4()
+        device_id = uuid4()
+        response = _json_response(
+            {
+                "event_id": str(event_id),
+                "reminder_type": "T_MINUS_10",
+                "title": "Sangha",
+                "body": "Starting in 10 minutes",
+                "recipients": [
+                    {
+                        "user_id": str(uuid4()),
+                        "push_devices": [
+                            {"id": str(device_id), "token": "token-1", "platform": "ios"}
+                        ],
+                    }
+                ],
+                "skip": 100,
+                "limit": 50,
+                "total": 120,
+                "has_more": False,
+            }
+        )
+        client_patch, http_client = _patch_async_client(response)
+
+        with client_patch, _patch_config():
+            targets = await backend_client.fetch_event_reminder_targets(
+                event_id=event_id,
+                reminder_type="T_MINUS_10",
+                skip=100,
+                limit=50,
+            )
+
+        assert targets.total == 120
+        assert targets.reminder_type == "T_MINUS_10"
+        assert targets.recipients[0].push_devices[0].id == device_id
+        assert http_client.get.await_args.args[0] == (
+            f"http://backend.test/internal/event-reminder-targets/{event_id}"
+        )
+        assert http_client.get.await_args.kwargs["params"] == {
+            "reminder_type": "T_MINUS_10",
+            "skip": 100,
+            "limit": 50,
+        }
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_first_page(self):
+        event_id = uuid4()
+        response = _json_response(
+            {
+                "event_id": str(event_id),
+                "reminder_type": "T_ZERO",
+                "title": "Sangha",
+                "body": "Starting now",
+                "recipients": [],
+                "skip": 0,
+                "limit": 100,
+                "total": 0,
+                "has_more": False,
+            }
+        )
+        client_patch, http_client = _patch_async_client(response)
+
+        with client_patch, _patch_config():
+            await backend_client.fetch_event_reminder_targets(
+                event_id=event_id, reminder_type="T_ZERO"
+            )
+
+        assert http_client.get.await_args.kwargs["params"] == {
+            "reminder_type": "T_ZERO",
+            "skip": 0,
+            "limit": 100,
+        }
+
+
 class TestFetchVerseOfDayNotificationTargets:
     @pytest.mark.asyncio
     async def test_returns_parsed_targets(self):

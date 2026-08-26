@@ -7,6 +7,7 @@ from worker_api.notifications.schemas import (
     ChatNotificationTargetsResponse,
     DeactivatePushDeviceResponse,
     EventNotificationTargetsResponse,
+    EventReminderTargetsResponse,
     GroupPostNotificationTargetsResponse,
     JoinRequestNotificationTargetsResponse,
     NotificationContent,
@@ -126,6 +127,23 @@ async def fetch_event_notification_targets(
         )
         response.raise_for_status()
         return EventNotificationTargetsResponse.model_validate(response.json())
+
+
+async def fetch_event_reminder_targets(
+    *,
+    event_id: UUID,
+    reminder_type: str,
+    skip: int = 0,
+    limit: int = 100,
+) -> EventReminderTargetsResponse:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(
+            f"{_backend_url()}/internal/event-reminder-targets/{event_id}",
+            params={"reminder_type": reminder_type, "skip": skip, "limit": limit},
+            headers=_backend_headers(),
+        )
+        response.raise_for_status()
+        return EventReminderTargetsResponse.model_validate(response.json())
 
 
 async def deactivate_push_device(*, push_device_id: UUID) -> DeactivatePushDeviceResponse:
