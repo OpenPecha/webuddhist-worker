@@ -124,7 +124,7 @@ async def _fetch_all_targets(event_id: UUID) -> EventNotificationTargetsResponse
 
 
 async def _fetch_all_reminder_targets(
-    event_id: UUID, reminder_type: str
+    event_id: UUID, reminder_type: str, fire_at: str | None
 ) -> EventReminderTargetsResponse:
     page_size = max(get_int("EVENT_NOTIFICATION_TARGET_PAGE_SIZE"), 1)
     skip = 0
@@ -136,6 +136,7 @@ async def _fetch_all_reminder_targets(
             page = await fetch_event_reminder_targets(
                 event_id=event_id,
                 reminder_type=reminder_type,
+                fire_at=fire_at,
                 skip=skip,
                 limit=page_size,
             )
@@ -314,10 +315,10 @@ async def _process_event_created(event_id: UUID, receipt_handle: Optional[str]) 
 
 
 async def _process_event_reminder(
-    event_id: UUID, reminder_type: str, receipt_handle: Optional[str]
+    event_id: UUID, reminder_type: str, fire_at: Optional[str], receipt_handle: Optional[str]
 ) -> None:
     try:
-        targets = await _fetch_all_reminder_targets(event_id, reminder_type)
+        targets = await _fetch_all_reminder_targets(event_id, reminder_type, fire_at)
     except HTTPException as exc:
         if exc.status_code == 404:
             logger.error(
@@ -399,7 +400,8 @@ async def process_event_notification_message(message: Dict[str, Any]) -> None:
     event_type = body.get("event_type")
     if event_type == EVENT_REMINDER_EVENT:
         reminder_type = body.get("reminder_type")
-        await _process_event_reminder(event_id, reminder_type, receipt_handle)
+        fire_at = body.get("fire_at")
+        await _process_event_reminder(event_id, reminder_type, fire_at, receipt_handle)
         return
 
     assert event_type == EVENT_CREATED_EVENT

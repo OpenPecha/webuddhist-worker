@@ -133,13 +133,20 @@ async def fetch_event_reminder_targets(
     *,
     event_id: UUID,
     reminder_type: str,
+    fire_at: str | None = None,
     skip: int = 0,
     limit: int = 100,
 ) -> EventReminderTargetsResponse:
+    params: dict[str, str | int] = {"reminder_type": reminder_type, "skip": skip, "limit": limit}
+    if fire_at is not None:
+        # Lets the backend recognize a message that outlived a cancel or
+        # reschedule of the same (event_id, reminder_type) row and was
+        # superseded by a fresh dispatch before this one was processed.
+        params["fire_at"] = fire_at
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(
             f"{_backend_url()}/internal/event-reminder-targets/{event_id}",
-            params={"reminder_type": reminder_type, "skip": skip, "limit": limit},
+            params=params,
             headers=_backend_headers(),
         )
         response.raise_for_status()

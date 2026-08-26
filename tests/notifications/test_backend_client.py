@@ -407,6 +407,38 @@ class TestFetchEventReminderTargets:
             "limit": 100,
         }
 
+    @pytest.mark.asyncio
+    async def test_includes_fire_at_when_provided(self):
+        event_id = uuid4()
+        response = _json_response(
+            {
+                "event_id": str(event_id),
+                "reminder_type": "T_ZERO",
+                "title": "Sangha",
+                "body": "Starting now",
+                "recipients": [],
+                "skip": 0,
+                "limit": 100,
+                "total": 0,
+                "has_more": False,
+            }
+        )
+        client_patch, http_client = _patch_async_client(response)
+
+        with client_patch, _patch_config():
+            await backend_client.fetch_event_reminder_targets(
+                event_id=event_id,
+                reminder_type="T_ZERO",
+                fire_at="2026-06-15T05:50:00+00:00",
+            )
+
+        assert http_client.get.await_args.kwargs["params"] == {
+            "reminder_type": "T_ZERO",
+            "fire_at": "2026-06-15T05:50:00+00:00",
+            "skip": 0,
+            "limit": 100,
+        }
+
 
 class TestFetchVerseOfDayNotificationTargets:
     @pytest.mark.asyncio

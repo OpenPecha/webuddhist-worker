@@ -68,15 +68,16 @@ def _body(event_id):
     )
 
 
-def _reminder_body(event_id, reminder_type):
-    return json.dumps(
-        {
-            "event_type": "EVENT_REMINDER",
-            "version": 1,
-            "event_id": str(event_id),
-            "reminder_type": reminder_type,
-        }
-    )
+def _reminder_body(event_id, reminder_type, fire_at=None):
+    body = {
+        "event_type": "EVENT_REMINDER",
+        "version": 1,
+        "event_id": str(event_id),
+        "reminder_type": reminder_type,
+    }
+    if fire_at is not None:
+        body["fire_at"] = fire_at
+    return json.dumps(body)
 
 
 class TestIdempotencyKey:
@@ -302,6 +303,65 @@ class TestProcessEventReminderMessage:
             {"ReceiptHandle": "r1", "Body": _reminder_body(event_id, "T_MINUS_10")}
         )
         mock_delete.assert_called_once_with("r1")
+
+    @pytest.mark.asyncio
+    @patch("worker_api.notifications.services.event_notification_consumer.delete_event_notification_message")
+    @patch(
+        "worker_api.notifications.services.event_notification_consumer._fetch_all_reminder_targets",
+        new_callable=AsyncMock,
+    )
+    @patch(
+        "worker_api.notifications.services.event_notification_consumer.is_push_configured",
+        return_value=False,
+    )
+    @patch("worker_api.notifications.services.event_notification_consumer.get_bool", return_value=True)
+    async def test_forwards_fire_at_from_the_message_to_target_resolution(
+        self, _get_bool, _configured, mock_fetch, _mock_delete,
+    ):
+        """Regression guard: fire_at is what lets the backend tell apart a
+        stale message that outlived a cancel/reschedule from a fresh
+        dispatch of the same (event_id, reminder_type) row - dropping it
+        here would silently re-open that race."""
+        event_id = uuid4()
+        device = EventPushDeviceTarget(id=uuid4(), token="tok", platform="android")
+        mock_fetch.return_value = _reminder_targets(
+            event_id=event_id, reminder_type="T_MINUS_10", devices=[device]
+        )
+
+        await process_event_notification_message(
+            {
+                "ReceiptHandle": "r1",
+                "Body": _reminder_body(event_id, "T_MINUS_10", fire_at="2026-06-15T05:50:00+00:00"),
+            }
+        )
+
+        mock_fetch.assert_awaited_once_with(event_id, "T_MINUS_10", "2026-06-15T05:50:00+00:00")
+
+    @pytest.mark.asyncio
+    @patch("worker_api.notifications.services.event_notification_consumer.delete_event_notification_message")
+    @patch(
+        "worker_api.notifications.services.event_notification_consumer._fetch_all_reminder_targets",
+        new_callable=AsyncMock,
+    )
+    @patch(
+        "worker_api.notifications.services.event_notification_consumer.is_push_configured",
+        return_value=False,
+    )
+    @patch("worker_api.notifications.services.event_notification_consumer.get_bool", return_value=True)
+    async def test_missing_fire_at_forwards_none(self, _get_bool, _configured, mock_fetch, _mock_delete):
+        """An older-format message (published before this field existed)
+        must still process, just without the extra staleness check."""
+        event_id = uuid4()
+        device = EventPushDeviceTarget(id=uuid4(), token="tok", platform="android")
+        mock_fetch.return_value = _reminder_targets(
+            event_id=event_id, reminder_type="T_ZERO", devices=[device]
+        )
+
+        await process_event_notification_message(
+            {"ReceiptHandle": "r1", "Body": _reminder_body(event_id, "T_ZERO")}
+        )
+
+        mock_fetch.assert_awaited_once_with(event_id, "T_ZERO", None)
 
     @pytest.mark.asyncio
     @patch("worker_api.notifications.services.event_notification_consumer.delete_event_notification_message")
