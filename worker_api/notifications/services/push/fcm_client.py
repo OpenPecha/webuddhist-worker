@@ -59,6 +59,39 @@ def build_chat_notification_data(
     }
 
 
+def build_prayer_notification_data(
+    *,
+    room_id: UUID,
+    message_id: UUID,
+    prayer_id: UUID,
+    chat_kind: str,
+    group_id: UUID | None,
+    event_id: UUID | None,
+    prayer_count: int,
+    title: str,
+    body: str,
+) -> dict[str, str]:
+    """FCM data payloads require string values.
+
+    Deep-links to the prayer request itself (message_id in its room), so the
+    tap lands on the request rather than the bottom of the room."""
+    return {
+        "notification_type": "PRAYER_RECEIVED",
+        "session_type": "CHAT",
+        "chat_kind": chat_kind,
+        "room_id": str(room_id),
+        "message_id": str(message_id),
+        "prayer_id": str(prayer_id),
+        "group_id": str(group_id) if group_id else "",
+        "event_id": str(event_id) if event_id else "",
+        "prayer_count": str(prayer_count),
+        "source_id": str(room_id),
+        "title": title,
+        "body": body,
+        "image_url": "",
+    }
+
+
 def build_group_post_notification_data(
     *,
     post_id: UUID,
@@ -184,6 +217,37 @@ async def send_chat_push_notification(
             sender_id=sender_id,
             chat_kind=chat_kind,
             group_id=group_id,
+            title=title,
+            body=body,
+        ),
+    )
+
+
+async def send_prayer_push_notification(
+    *,
+    device_token: str,
+    room_id: UUID,
+    message_id: UUID,
+    prayer_id: UUID,
+    chat_kind: str,
+    group_id: UUID | None,
+    event_id: UUID | None,
+    prayer_count: int,
+    title: str,
+    body: str,
+) -> None:
+    await send_fcm_notification(
+        device_token=device_token,
+        title=title,
+        body=body,
+        data=build_prayer_notification_data(
+            room_id=room_id,
+            message_id=message_id,
+            prayer_id=prayer_id,
+            chat_kind=chat_kind,
+            group_id=group_id,
+            event_id=event_id,
+            prayer_count=prayer_count,
             title=title,
             body=body,
         ),

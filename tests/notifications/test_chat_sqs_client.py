@@ -9,6 +9,7 @@ import worker_api.notifications.chat_sqs_client as sqs_module
 from worker_api.notifications.chat_sqs_client import (
     CHAT_MESSAGE_CREATED_EVENT,
     CHAT_NOTIFICATION_EVENT_VERSION,
+    PRAYER_RECEIVED_EVENT,
     delete_chat_notification_message,
     get_chat_notification_sqs_queue_url,
     is_chat_notification_sqs_configured,
@@ -46,6 +47,31 @@ class TestParseBody:
             )
         )
         assert body["message_id"] == message_id
+
+    def test_valid_prayer_event(self):
+        """Prayer notifications share the queue, keyed on prayer_id."""
+        prayer_id = str(uuid4())
+        body = parse_chat_notification_message_body(
+            json.dumps(
+                {
+                    "event_type": PRAYER_RECEIVED_EVENT,
+                    "version": CHAT_NOTIFICATION_EVENT_VERSION,
+                    "prayer_id": prayer_id,
+                }
+            )
+        )
+        assert body["prayer_id"] == prayer_id
+
+    def test_rejects_prayer_event_without_prayer_id(self):
+        assert parse_chat_notification_message_body(
+            json.dumps(
+                {
+                    "event_type": PRAYER_RECEIVED_EVENT,
+                    "version": CHAT_NOTIFICATION_EVENT_VERSION,
+                    "message_id": str(uuid4()),
+                }
+            )
+        ) is None
 
     def test_rejects_invalid_json(self):
         assert parse_chat_notification_message_body("not-json") is None

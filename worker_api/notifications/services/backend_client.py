@@ -5,6 +5,7 @@ from uuid import UUID
 from worker_api.config import get
 from worker_api.notifications.schemas import (
     ChatNotificationTargetsResponse,
+    PrayerNotificationTargetsResponse,
     DeactivatePushDeviceResponse,
     EventNotificationTargetsResponse,
     GroupPostNotificationTargetsResponse,
@@ -68,6 +69,22 @@ async def fetch_chat_notification_targets(
         )
         response.raise_for_status()
         return ChatNotificationTargetsResponse.model_validate(response.json())
+
+
+async def fetch_prayer_notification_targets(
+    *,
+    prayer_id: UUID,
+    skip: int = 0,
+    limit: int = 100,
+) -> PrayerNotificationTargetsResponse:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(
+            f"{_backend_url()}/internal/prayer-notification-targets/{prayer_id}",
+            params={"skip": skip, "limit": limit},
+            headers=_backend_headers(),
+        )
+        response.raise_for_status()
+        return PrayerNotificationTargetsResponse.model_validate(response.json())
 
 
 async def fetch_join_request_notification_targets(

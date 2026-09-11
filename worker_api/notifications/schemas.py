@@ -193,6 +193,28 @@ class ChatNotificationTargetsResponse(BaseModel):
     has_more: bool
 
 
+class PrayerNotificationTargetsResponse(BaseModel):
+    """Targets for "someone prayed for your request".
+
+    Recipients is the requester alone; the pagination fields mirror the chat
+    targets contract so both can share one consumer."""
+    prayer_id: UUID
+    message_id: UUID
+    room_id: UUID
+    chat_kind: str
+    group_id: UUID | None = None
+    event_id: UUID | None = None
+    requester_id: UUID
+    prayer_count: int
+    title: str
+    body: str
+    recipients: list[ChatNotificationRecipient]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
 class GroupPostPushDeviceTarget(BaseModel):
     id: UUID
     token: str

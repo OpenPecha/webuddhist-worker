@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 _sqs_client = None
 
 CHAT_MESSAGE_CREATED_EVENT = "CHAT_MESSAGE_CREATED"
+PRAYER_RECEIVED_EVENT = "PRAYER_RECEIVED"
 CHAT_NOTIFICATION_EVENT_VERSION = 1
 
 
@@ -85,14 +86,22 @@ def parse_chat_notification_message_body(raw_body: str) -> Optional[Dict[str, An
 
     event_type = body.get("event_type")
     version = body.get("version")
-    message_id = body.get("message_id")
-    if event_type != CHAT_MESSAGE_CREATED_EVENT:
+    if event_type not in (CHAT_MESSAGE_CREATED_EVENT, PRAYER_RECEIVED_EVENT):
         logger.error("Unsupported chat notification event_type: %s", event_type)
         return None
     if version != CHAT_NOTIFICATION_EVENT_VERSION:
         logger.error("Unsupported chat notification event version: %s", version)
         return None
-    if not message_id:
+
+    # The two events are keyed differently: a chat message by message_id, a
+    # prayer by the prayer_id of the one person who prayed.
+    if event_type == PRAYER_RECEIVED_EVENT:
+        if not body.get("prayer_id"):
+            logger.error("Prayer notification SQS message missing prayer_id: %s", body)
+            return None
+        return body
+
+    if not body.get("message_id"):
         logger.error("Chat notification SQS message missing message_id: %s", body)
         return None
     return body
