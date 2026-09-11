@@ -6,10 +6,12 @@ import pytest
 from worker_api.notifications.services.push.fcm_client import (
     build_chat_notification_data,
     build_event_notification_data,
+    build_event_reminder_notification_data,
     build_group_post_notification_data,
     build_routine_notification_data,
     send_chat_push_notification,
     send_event_push_notification,
+    send_event_reminder_push_notification,
     send_fcm_notification,
     send_group_post_push_notification,
     send_routine_push_notification,
@@ -139,6 +141,27 @@ class TestBuildEventNotificationData:
             "source_id": str(event_id),
             "title": "Sangha",
             "body": "Full Moon Meditation",
+            "image_url": "",
+        }
+
+
+class TestBuildEventReminderNotificationData:
+    def test_includes_reminder_routing_fields(self):
+        event_id = uuid4()
+        data = build_event_reminder_notification_data(
+            event_id=event_id,
+            reminder_type="T_MINUS_10",
+            title="Sangha",
+            body="Starting in 10 minutes",
+        )
+        assert data == {
+            "notification_type": "EVENT_REMINDER",
+            "session_type": "EVENT_REMINDER",
+            "reminder_type": "T_MINUS_10",
+            "event_id": str(event_id),
+            "source_id": str(event_id),
+            "title": "Sangha",
+            "body": "Starting in 10 minutes",
             "image_url": "",
         }
 
@@ -285,4 +308,25 @@ class TestSendEventPushNotification:
         assert kwargs["body"] == "Full Moon Meditation"
         assert kwargs["data"]["notification_type"] == "EVENT"
         assert kwargs["data"]["session_type"] == "EVENT"
+        assert kwargs["data"]["event_id"] == str(event_id)
+
+
+class TestSendEventReminderPushNotification:
+    @pytest.mark.asyncio
+    @patch("worker_api.notifications.services.push.fcm_client.send_fcm_notification")
+    async def test_delegates_with_reminder_payload(self, mock_send):
+        event_id = uuid4()
+        await send_event_reminder_push_notification(
+            device_token="device-token",
+            event_id=event_id,
+            reminder_type="T_ZERO",
+            title="Sangha",
+            body="Starting now",
+        )
+        mock_send.assert_awaited_once()
+        kwargs = mock_send.await_args.kwargs
+        assert kwargs["title"] == "Sangha"
+        assert kwargs["body"] == "Starting now"
+        assert kwargs["data"]["notification_type"] == "EVENT_REMINDER"
+        assert kwargs["data"]["reminder_type"] == "T_ZERO"
         assert kwargs["data"]["event_id"] == str(event_id)

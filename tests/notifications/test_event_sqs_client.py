@@ -8,6 +8,7 @@ from botocore.exceptions import ClientError
 from worker_api.notifications.event_sqs_client import (
     EVENT_CREATED_EVENT,
     EVENT_NOTIFICATION_EVENT_VERSION,
+    EVENT_REMINDER_EVENT,
     delete_event_notification_message,
     get_event_notification_sqs_queue_url,
     is_event_notification_sqs_configured,
@@ -68,6 +69,58 @@ class TestParseBody:
     def test_rejects_missing_event_id(self):
         assert parse_event_notification_message_body(
             json.dumps({"event_type": EVENT_CREATED_EVENT, "version": 1})
+        ) is None
+
+    def test_valid_reminder_t_minus_10(self):
+        event_id = str(uuid4())
+        body = parse_event_notification_message_body(
+            json.dumps(
+                {
+                    "event_type": EVENT_REMINDER_EVENT,
+                    "version": EVENT_NOTIFICATION_EVENT_VERSION,
+                    "event_id": event_id,
+                    "reminder_type": "T_MINUS_10",
+                }
+            )
+        )
+        assert body["event_id"] == event_id
+        assert body["reminder_type"] == "T_MINUS_10"
+
+    def test_valid_reminder_t_zero(self):
+        event_id = str(uuid4())
+        body = parse_event_notification_message_body(
+            json.dumps(
+                {
+                    "event_type": EVENT_REMINDER_EVENT,
+                    "version": EVENT_NOTIFICATION_EVENT_VERSION,
+                    "event_id": event_id,
+                    "reminder_type": "T_ZERO",
+                }
+            )
+        )
+        assert body["reminder_type"] == "T_ZERO"
+
+    def test_rejects_reminder_missing_reminder_type(self):
+        assert parse_event_notification_message_body(
+            json.dumps(
+                {
+                    "event_type": EVENT_REMINDER_EVENT,
+                    "version": EVENT_NOTIFICATION_EVENT_VERSION,
+                    "event_id": str(uuid4()),
+                }
+            )
+        ) is None
+
+    def test_rejects_reminder_invalid_reminder_type(self):
+        assert parse_event_notification_message_body(
+            json.dumps(
+                {
+                    "event_type": EVENT_REMINDER_EVENT,
+                    "version": EVENT_NOTIFICATION_EVENT_VERSION,
+                    "event_id": str(uuid4()),
+                    "reminder_type": "T_MINUS_60",
+                }
+            )
         ) is None
 
 
